@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Checkout - INDEX</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="logo">
+          <div class="logo-text">
+            <span class="logo-name">INDEX</span>
+            <span class="logo-sub">Property Management</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <a href="index.html">Home</a>
+        </nav>
+      </header>
+
+      <main class="feature-page">
+        <section class="feature-hero">
+          <p class="eyebrow">Secure checkout</p>
+          <h1>Complete your subscription.</h1>
+          <p class="lead">Select your plan and enter payment details.</p>
+        </section>
+
+        <form class="feature-form" data-endpoint="#">
+          <div class="form-grid">
+            <label class="form-field">
+              Plan
+              <select name="plan" id="plan-select">
+                <option value="core">Core - $2 / unit</option>
+                <option value="growth">Growth - $4 / unit</option>
+                <option value="premium">Premium - $5 / unit</option>
+              </select>
+            </label>
+            <label class="form-field">
+              Units
+              <input type="number" name="units" data-type="number" placeholder="100" min="1" required />
+            </label>
+            <label class="form-field">
+              Cardholder name
+              <input type="text" name="card_name" placeholder="Alex Carter" required />
+            </label>
+            <label class="form-field">
+              Card number
+              <input type="text" name="card_number" placeholder="4242 4242 4242 4242" required />
+            </label>
+            <label class="form-field">
+              Expiry (MM/YY)
+              <input type="text" name="expiry" placeholder="12/28" required />
+            </label>
+            <label class="form-field">
+              CVC
+              <input type="text" name="cvc" placeholder="123" required />
+            </label>
+          </div>
+          <button class="primary" type="submit">Start subscription</button>
+          <p class="lead" style="color: var(--slate); margin-top: 8px;">
+            Note: This is a placeholder checkout page. Connect to a processor (e.g., Stripe) before going live.
+          </p>
+        </form>
+      </main>
+    </div>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const plan = params.get('plan');
+      const select = document.getElementById('plan-select');
+      if (plan && select) {
+        select.value = plan;
+      }
+    </script>
+  </body>
+</html>

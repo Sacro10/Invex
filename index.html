@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>INDEX - Property Management, Automated</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spectral:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="logo">
+          <svg class="logo-mark" viewBox="0 0 220 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="leafGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#9fd4c7" />
+                <stop offset="100%" stop-color="#4fc1c7" />
+              </linearGradient>
+              <linearGradient id="petalGradient" x1="0" x2="1" y1="1" y2="0">
+                <stop offset="0%" stop-color="#67c6d3" />
+                <stop offset="100%" stop-color="#3ba9c7" />
+              </linearGradient>
+            </defs>
+            <rect x="104" y="10" width="10" height="70" rx="4" fill="#0f1c22" />
+            <path
+              d="M108 38c-12 4-22 14-24 26 10-2 20-10 24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M110 46c12 6 22 16 24 28-10-2-20-10-24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <ellipse cx="110" cy="8" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="88" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="132" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="84" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="136" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <path
+              d="M110 84c-6 10-3 20 0 26 3-6 8-14 7-23"
+              fill="url(#petalGradient)"
+            />
+          </svg>
+          <div class="logo-text">
+            <span class="logo-name">INDEX</span>
+            <span class="logo-sub">Property Management</span>
+          </div>
+        </div>
+        <nav class="nav">
+          <div class="nav-dropdown">
+            <button class="nav-trigger" aria-expanded="false">
+              Home sections
+              <span class="nav-caret"></span>
+            </button>
+            <div class="nav-menu" role="menu">
+              <a href="#problem" role="menuitem">Problem</a>
+              <a href="#features" role="menuitem">Features</a>
+              <a href="#pulse" role="menuitem">Pulse</a>
+              <a href="#pricing" role="menuitem">Pricing</a>
+              <a href="#reviews" role="menuitem">Reviews</a>
+            </div>
+          </div>
+          <a href="tenant-screening.html">Screening</a>
+          <a href="maintenance.html">Maintenance</a>
+          <a href="accounting.html">Accounting</a>
+          <a href="lease-renewal.html">Renewals</a>
+          <a href="communication.html">Comms</a>
+          <a class="nav-cta" href="#cta">Get a demo</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero reveal" id="top">
+          <div class="hero-copy">
+            <p class="eyebrow">Property management, rebuilt</p>
+            <h1>
+              Automated operations for modern property managers.
+            </h1>
+            <p class="lead">
+              INDEX unifies screening, maintenance, rent, and renewals so you
+              spend time scaling the portfolio—not chasing tasks.
+            </p>
+            <div class="hero-actions">
+              <a
+                class="primary button-link"
+                href="mailto:invexcompany101@gmail.com?subject=Book%20a%20demo&body=I%20want%20a%2015-min%20demo"
+              >
+                Book a 15-min demo
+              </a>
+              <a class="ghost button-link" href="overview.pdf" download>
+                Download overview
+              </a>
+            </div>
+            <div class="hero-stats">
+              <div>
+                <span>2-5</span>
+                <p>per unit, per month</p>
+              </div>
+              <div>
+                <span>24h</span>
+                <p>maintenance response routing</p>
+              </div>
+              <div>
+                <span>AI</span>
+                <p>risk scoring for tenants</p>
+              </div>
+            </div>
+          </div>
+          <div class="hero-panel reveal delay-1" id="pulse">
+            <div class="panel-card">
+              <div class="panel-header">
+                <h3>Live Portfolio Pulse</h3>
+                <span class="status">Healthy</span>
+              </div>
+              <div class="panel-body">
+                <div class="metric">
+                  <p>Occupancy</p>
+                  <h4 id="metric-occupancy">96.4%</h4>
+                </div>
+                <div class="metric">
+                  <p>Rent Collected</p>
+                  <h4 id="metric-rent">$1.26M</h4>
+                </div>
+                <div class="metric">
+                  <p>Open Requests</p>
+                  <h4 id="metric-requests">18</h4>
+                </div>
+                <div class="timeline">
+                  <div class="timeline-item">
+                    <span>Maintenance</span>
+                    <p id="timeline-maintenance">Auto-routed to vendor in 6 min</p>
+                  </div>
+                  <div class="timeline-item">
+                    <span>Lease Renewal</span>
+                    <p id="timeline-renewal">AI suggested 4.2% market update</p>
+                  </div>
+                  <div class="timeline-item">
+                    <span>Screening</span>
+                    <p id="timeline-screening">Risk score 82, approved</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="problem reveal" id="problem">
+          <div class="section-title">
+            <p class="eyebrow">Why now</p>
+            <h2>The job is fragmented. The stakes are rising.</h2>
+          </div>
+          <div class="problem-grid">
+            <div class="problem-card reveal delay-1">
+              <h3>Repetitive admin work</h3>
+              <p>
+                Screening, leases, requests, and reporting live in too many tools.
+              </p>
+            </div>
+            <div class="problem-card reveal delay-2">
+              <h3>Tenant communication gaps</h3>
+              <p>
+                Slow follow-ups erode satisfaction and raise churn.
+              </p>
+            </div>
+            <div class="problem-card reveal delay-3">
+              <h3>Market is shifting</h3>
+              <p>
+                Digital expectations and consolidation demand efficiency gains.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="features reveal" id="features">
+          <div class="section-title">
+            <p class="eyebrow">Essential features</p>
+            <h2>Everything you need to run a modern portfolio.</h2>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card reveal delay-1">
+              <h3>Automated tenant screening</h3>
+              <p>
+                AI risk scores surface the right applicants fast.
+              </p>
+              <a class="feature-link" href="tenant-screening.html">Open screening</a>
+            </article>
+            <article class="feature-card reveal delay-2">
+              <h3>Smart maintenance routing</h3>
+              <p>
+                Requests auto-categorize, assign, and schedule vendors.
+              </p>
+              <a class="feature-link" href="maintenance.html">Open routing</a>
+            </article>
+            <article class="feature-card reveal delay-3">
+              <h3>Integrated accounting</h3>
+              <p>
+                Rent collection, ledger sync, and owner reporting in one view.
+              </p>
+              <a class="feature-link" href="accounting.html">Open accounting</a>
+            </article>
+            <article class="feature-card reveal delay-1">
+              <h3>Lease renewal optimization</h3>
+              <p>
+                Market intelligence suggests renewals that protect NOI.
+              </p>
+              <a class="feature-link" href="lease-renewal.html">Open renewal</a>
+            </article>
+            <article class="feature-card reveal delay-2">
+              <h3>Tenant communication portal</h3>
+              <p>
+                Reminders, SMS updates, and self-serve requests keep everyone aligned.
+              </p>
+              <a class="feature-link" href="communication.html">Open comms</a>
+            </article>
+          </div>
+        </section>
+
+        <section class="gallery reveal" aria-label="Portfolio visuals">
+          <div class="section-title">
+            <p class="eyebrow">Inside INDEX</p>
+            <h2>Real spaces, real operations.</h2>
+          </div>
+          <div class="gallery-grid">
+            <figure>
+              <img src="pic1.jpeg" alt="Property exterior" loading="lazy" />
+            </figure>
+            <figure>
+              <img src="pic 2.jpeg" alt="Lobby or common area" loading="lazy" />
+            </figure>
+            <figure>
+              <img src="pic 3.jpeg" alt="Modern unit interior" loading="lazy" />
+            </figure>
+            <figure>
+              <img src="pic4.jpeg" alt="Amenity space" loading="lazy" />
+            </figure>
+            <figure>
+              <img src="pic5.jpeg" alt="Team collaboration" loading="lazy" />
+            </figure>
+          </div>
+        </section>
+
+        <section class="market reveal" id="market">
+          <div class="market-content">
+            <div>
+              <p class="eyebrow">Market opportunity</p>
+              <h2>Millions of units are still managed manually.</h2>
+              <p>
+                Millions of rental units still run on manual processes. Operators
+                want platforms that cut overhead and improve retention.
+              </p>
+            </div>
+            <div class="market-highlight reveal delay-2">
+              <h3>Efficiency gains that scale</h3>
+              <ul>
+                <li>Standardize workflows across every property.</li>
+                <li>Centralize financial reporting for owners and investors.</li>
+                <li>Increase response speed with automated scheduling.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="pricing reveal" id="pricing">
+          <div class="section-title">
+            <p class="eyebrow">Pricing</p>
+            <h2>Transparent per-unit pricing.</h2>
+          </div>
+          <div class="pricing-grid">
+            <a class="price-link reveal delay-1" href="payment.html?plan=core">
+              <div class="price-card">
+                <h3>Core</h3>
+                <p class="price">$2 / unit</p>
+                <ul>
+                  <li>Tenant screening</li>
+                  <li>Maintenance routing</li>
+                  <li>Tenant portal + reminders</li>
+                  <li>Digital lease storage</li>
+                  <li>Move-in checklist automation</li>
+                  <li>Basic owner reporting</li>
+                </ul>
+              </div>
+            </a>
+            <a class="price-link reveal delay-2" href="payment.html?plan=growth">
+              <div class="price-card featured">
+                <h3>Growth</h3>
+                <p class="price">$4 / unit</p>
+                <ul>
+                  <li>Integrated accounting</li>
+                  <li>Automated rent collection</li>
+                  <li>Portfolio reporting</li>
+                  <li>Vendor SLA tracking</li>
+                  <li>Custom workflow rules</li>
+                  <li>Multi-property dashboards</li>
+                </ul>
+              </div>
+            </a>
+            <a class="price-link reveal delay-3" href="payment.html?plan=premium">
+              <div class="price-card">
+                <h3>Premium</h3>
+                <p class="price">$5 / unit</p>
+                <ul>
+                  <li>Market pricing intelligence</li>
+                  <li>Advanced analytics</li>
+                  <li>Dedicated onboarding</li>
+                  <li>Predictive vacancy alerts</li>
+                  <li>Priority support line</li>
+                  <li>Data export + API access</li>
+                </ul>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <section class="audience reveal" id="audience">
+          <div class="section-title">
+            <p class="eyebrow">Target customers</p>
+            <h2>Built for every type of portfolio.</h2>
+          </div>
+          <div class="audience-grid">
+            <div class="reveal delay-1">
+              <h3>Independent landlords</h3>
+              <p>One dashboard to screen, collect rent, and manage requests.</p>
+            </div>
+            <div class="reveal delay-2">
+              <h3>Property management companies</h3>
+              <p>Standardize operations across hundreds of units.</p>
+            </div>
+            <div class="reveal delay-3">
+              <h3>Investment firms</h3>
+              <p>Institutional reporting and NOI optimization for stakeholders.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="reviews reveal" id="reviews">
+          <div class="section-title">
+            <p class="eyebrow">Reviews</p>
+            <h2>Teams are already running smoother.</h2>
+          </div>
+          <div class="reviews-grid">
+            <article class="review-card">
+              <div class="review-top">
+                <div class="avatar">AL</div>
+                <div>
+                  <p class="review-name">A. Lopez</p>
+                  <p class="review-role">Owner, 42-unit portfolio</p>
+                </div>
+              </div>
+              <p class="review-quote">
+                “Screening and move-ins now happen in one place. Turn time on
+                applicants dropped from a week to two days.”
+              </p>
+            </article>
+            <article class="review-card">
+              <div class="review-top">
+                <div class="avatar">MK</div>
+                <div>
+                  <p class="review-name">M. Khan</p>
+                  <p class="review-role">Ops lead, PMC</p>
+                </div>
+              </div>
+              <p class="review-quote">
+                “Maintenance routing finally feels automatic. Vendor SLAs and
+                scheduling happen without my team babysitting tickets.”
+              </p>
+            </article>
+            <article class="review-card">
+              <div class="review-top">
+                <div class="avatar">SR</div>
+                <div>
+                  <p class="review-name">S. Rivera</p>
+                  <p class="review-role">Asset manager</p>
+                </div>
+              </div>
+              <p class="review-quote">
+                “Renewal pricing suggestions are accurate and defensible. NOI
+                is up and the reporting is investor-ready.”
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="cta reveal" id="cta">
+          <div class="cta-card reveal delay-1">
+            <div>
+              <h2>Ready to streamline your portfolio?</h2>
+              <p>
+                See how INDEX handles screening, maintenance, accounting, and
+                renewals with intelligent automation.
+              </p>
+            </div>
+            <a
+              class="primary button-link"
+              href="mailto:invexcompany101@gmail.com?subject=Book%20a%20demo&body=I%20want%20a%2015-min%20demo"
+            >
+              Schedule a demo
+            </a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div>
+          <h3>INDEX</h3>
+          <p>Property operations, automated.</p>
+        </div>
+        <div class="footer-links">
+          <a href="privacy.html">Privacy</a>
+          <a href="terms.html">Terms of Use</a>
+        </div>
+        <p>Contact: invexcompany101@gmail.com</p>
+        <p class="copyright">© 2026 Index Property Management. All rights reserved.</p>
+      </footer>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

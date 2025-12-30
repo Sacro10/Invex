@@ -24,11 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.mount("/", StaticFiles(directory="../", html=True), name="static")
+app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
-@app.get("/")
-def root():
-    return HTMLResponse("<h1>App is running!</h1><p>Check <a href='/api/health'>/api/health</a></p>")
+# @app.get("/")
+# def root():
+#     return HTMLResponse("<h1>App is running!</h1><p>Check <a href='/api/health'>/api/health</a></p>")
 
 
 def get_conn() -> sqlite3.Connection:

@@ -10,7 +10,7 @@ This is a property management SaaS demo with a static frontend (HTML/CSS/JS) and
 - `feature-pages.js` - Generic form submission handler for API endpoints
 - `styles.css` - Custom CSS with color variables (`--ink`, `--mint`, etc.) and fonts (Space Grotesk, Spectral)
 - `backend/main.py` - FastAPI app with SQLite database and AI-like scoring logic
-- `backend/requirements.txt` - FastAPI, Uvicorn, Pydantic
+- `backend/requirements.txt` - FastAPI (0.115.6), Uvicorn (0.32.0), Pydantic (2.9.2)
 
 ## API Patterns
 - Endpoints: `/api/tenant-screening`, `/api/maintenance-request`, `/api/rent-collection`, `/api/lease-renewal`, `/api/notification`, `/api/pulse`

@@ -808,6 +808,22 @@ section {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
+.status-select {
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.status-select:focus {
+  outline: none;
+  border-color: var(--mint);
+  box-shadow: 0 0 0 2px rgba(159, 212, 199, 0.2);
+}
+
 /* Result table styling */
 .result-table {
   width: 100%;

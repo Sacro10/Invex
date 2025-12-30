@@ -114,10 +114,11 @@ function displayTable(data, containerId, columns) {
         value = formatDate(value);
       }
       if (col.key === "status" && containerId === "maintenance-table") {
-        // Add Mark Resolved button for open requests
-        if (value === "open") {
-          value = `<button class="mark-resolved" data-id="${row.id}">Mark Resolved</button>`;
-        }
+        // Add status select
+        value = `<select class="status-select" data-id="${row.id}">
+          <option value="open" ${value === 'open' ? 'selected' : ''}>Pending</option>
+          <option value="resolved" ${value === 'resolved' ? 'selected' : ''}>Completed</option>
+        </select>`;
       }
       table += `<td>${value}</td>`;
     });
@@ -127,12 +128,13 @@ function displayTable(data, containerId, columns) {
   table += "</tbody></table>";
   container.innerHTML = table;
 
-  // Add event listeners for Mark Resolved buttons
+  // Add event listeners for status selects
   if (containerId === "maintenance-table") {
-    document.querySelectorAll(".mark-resolved").forEach(btn => {
-      btn.addEventListener("click", (e) => {
+    document.querySelectorAll(".status-select").forEach(select => {
+      select.addEventListener("change", (e) => {
         const id = e.target.dataset.id;
-        updateStatus(id, "resolved");
+        const status = e.target.value;
+        updateStatus(id, status);
       });
     });
   }

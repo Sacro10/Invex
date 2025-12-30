@@ -34,6 +34,24 @@ const formatDate = (isoString) => {
   });
 };
 
+const displayResultAsTable = (data, element) => {
+  if (!data || typeof data !== 'object') {
+    element.textContent = JSON.stringify(data, null, 2);
+    return;
+  }
+
+  let table = '<table class="result-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+  Object.entries(data).forEach(([key, value]) => {
+    // Format dates
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      value = formatDate(value);
+    }
+    table += `<tr><td>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</td><td>${value}</td></tr>`;
+  });
+  table += '</tbody></table>';
+  element.innerHTML = table;
+};
+
 forms.forEach((form) => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -60,7 +78,7 @@ forms.forEach((form) => {
         throw new Error(data.detail || "Request failed");
       }
       if (result) {
-        result.textContent = JSON.stringify(data, null, 2);
+        displayResultAsTable(data, result);
       }
     } catch (error) {
       if (result) {

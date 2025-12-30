@@ -59,7 +59,6 @@
         </div>
         <nav class="nav">
           <a href="index.html">Home</a>
-          <a href="properties.html">Properties</a>
           <a href="maintenance.html">Maintenance</a>
           <a href="accounting.html">Accounting</a>
           <a href="lease-renewal.html">Renewals</a>
@@ -79,7 +78,7 @@
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/tenant-screening" data-view-endpoint="/api/tenant-screenings" data-export-endpoint="/api/export/tenant-screenings/csv">
+        <form class="feature-form" data-endpoint="/api/tenant-screening">
           <div class="form-grid">
             <label class="form-field">
               Applicant name
@@ -100,9 +99,6 @@
           </div>
           <button class="primary" type="submit">Run screening</button>
           <pre class="result"></pre>
-          <button id="view-all">View All Screenings</button>
-          <button id="download-csv">Download CSV</button>
-          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
       </main>
     </div>

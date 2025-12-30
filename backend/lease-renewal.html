@@ -59,7 +59,6 @@
         </div>
         <nav class="nav">
           <a href="index.html">Home</a>
-          <a href="properties.html">Properties</a>
           <a href="tenant-screening.html">Screening</a>
           <a href="maintenance.html">Maintenance</a>
           <a href="accounting.html">Accounting</a>
@@ -79,7 +78,7 @@
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/lease-renewal" data-view-endpoint="/api/lease-renewals" data-export-endpoint="/api/export/lease-renewals/csv">
+        <form class="feature-form" data-endpoint="/api/lease-renewal">
           <div class="form-grid">
             <label class="form-field">
               Current rent
@@ -96,9 +95,6 @@
           </div>
           <button class="primary" type="submit">Generate renewal</button>
           <pre class="result"></pre>
-          <button id="view-all">View All Renewals</button>
-          <button id="download-csv">Download CSV</button>
-          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
       </main>
     </div>

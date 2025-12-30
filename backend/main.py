@@ -24,55 +24,55 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.mount("/", StaticFiles(directory=".", html=True), name="static")
+app.mount("/", StaticFiles(directory=".", html=True), name="static")
 
-@app.get("/")
-def root():
-    return FileResponse(BASE_DIR / "index.html")
+# @app.get("/")
+# def root():
+#     return FileResponse(BASE_DIR / "index.html")
 
-@app.get("/styles.css")
-def styles():
-    return FileResponse(BASE_DIR / "styles.css")
+# @app.get("/styles.css")
+# def styles():
+#     return FileResponse(BASE_DIR / "styles.css")
 
-@app.get("/script.js")
-def script():
-    return FileResponse(BASE_DIR / "script.js")
+# @app.get("/script.js")
+# def script():
+#     return FileResponse(BASE_DIR / "script.js")
 
-@app.get("/feature-pages.js")
-def feature_pages():
-    return FileResponse(BASE_DIR / "feature-pages.js")
+# @app.get("/feature-pages.js")
+# def feature_pages():
+#     return FileResponse(BASE_DIR / "feature-pages.js")
 
-@app.get("/tenant-screening.html")
-def tenant_screening_page():
-    return FileResponse(BASE_DIR / "tenant-screening.html")
+# @app.get("/tenant-screening.html")
+# def tenant_screening_page():
+#     return FileResponse(BASE_DIR / "tenant-screening.html")
 
-@app.get("/maintenance.html")
-def maintenance_page():
-    return FileResponse(BASE_DIR / "maintenance.html")
+# @app.get("/maintenance.html")
+# def maintenance_page():
+#     return FileResponse(BASE_DIR / "maintenance.html")
 
-@app.get("/accounting.html")
-def accounting_page():
-    return FileResponse(BASE_DIR / "accounting.html")
+# @app.get("/accounting.html")
+# def accounting_page():
+#     return FileResponse(BASE_DIR / "accounting.html")
 
-@app.get("/lease-renewal.html")
-def lease_renewal_page():
-    return FileResponse(BASE_DIR / "lease-renewal.html")
+# @app.get("/lease-renewal.html")
+# def lease_renewal_page():
+#     return FileResponse(BASE_DIR / "lease-renewal.html")
 
-@app.get("/communication.html")
-def communication_page():
-    return FileResponse(BASE_DIR / "communication.html")
+# @app.get("/communication.html")
+# def communication_page():
+#     return FileResponse(BASE_DIR / "communication.html")
 
-@app.get("/privacy.html")
-def privacy_page():
-    return FileResponse(BASE_DIR / "privacy.html")
+# @app.get("/privacy.html")
+# def privacy_page():
+#     return FileResponse(BASE_DIR / "privacy.html")
 
-@app.get("/terms.html")
-def terms_page():
-    return FileResponse(BASE_DIR / "terms.html")
+# @app.get("/terms.html")
+# def terms_page():
+#     return FileResponse(BASE_DIR / "terms.html")
 
-@app.get("/properties.html")
-def properties_page():
-    return FileResponse(BASE_DIR / "properties.html")
+# @app.get("/properties.html")
+# def properties_page():
+#     return FileResponse(BASE_DIR / "properties.html")
 
 
 def get_conn() -> sqlite3.Connection:

@@ -59,7 +59,6 @@
         </div>
         <nav class="nav">
           <a href="index.html">Home</a>
-          <a href="properties.html">Properties</a>
           <a href="tenant-screening.html">Screening</a>
           <a href="accounting.html">Accounting</a>
           <a href="lease-renewal.html">Renewals</a>
@@ -79,7 +78,7 @@
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/maintenance-request" data-view-endpoint="/api/maintenance-requests" data-export-endpoint="/api/export/maintenance-requests/csv">
+        <form class="feature-form" data-endpoint="/api/maintenance-request">
           <div class="form-grid">
             <label class="form-field">
               Property ID
@@ -100,9 +99,6 @@
           </div>
           <button class="primary" type="submit">Route request</button>
           <pre class="result"></pre>
-          <button id="view-all">View All Requests</button>
-          <button id="download-csv">Download CSV</button>
-          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
       </main>
     </div>

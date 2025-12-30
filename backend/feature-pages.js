@@ -73,9 +73,10 @@ if (viewAllBtn) {
     try {
       const response = await fetch(endpoint);
       const data = await response.json();
+      alert('Fetched data: ' + JSON.stringify(data));
       displayTable(data);
     } catch (e) {
-      alert('Error fetching data');
+      alert('Error fetching data: ' + e.message);
     }
   });
 }

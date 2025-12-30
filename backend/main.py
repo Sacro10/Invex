@@ -9,6 +9,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -21,9 +22,12 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)
 
 app.mount("/", StaticFiles(directory="../", html=True), name="static")
+
+@app.get("/")
+def root():
+    return FileResponse("../index.html")
 
 
 def get_conn() -> sqlite3.Connection:

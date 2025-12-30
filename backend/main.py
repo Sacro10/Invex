@@ -70,6 +70,10 @@ def privacy_page():
 def terms_page():
     return FileResponse(BASE_DIR / "terms.html")
 
+@app.get("/properties.html")
+def properties_page():
+    return FileResponse(BASE_DIR / "properties.html")
+
 
 def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
@@ -142,6 +146,20 @@ def init_db() -> None:
                 message TEXT NOT NULL,
                 scheduled_for TEXT NOT NULL,
                 status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS properties (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                address TEXT NOT NULL,
+                city TEXT NOT NULL,
+                state TEXT NOT NULL,
+                zip_code TEXT NOT NULL,
+                property_type TEXT NOT NULL,
+                units INTEGER NOT NULL,
                 created_at TEXT NOT NULL
             )
             """
@@ -226,6 +244,26 @@ class PulseResponse(BaseModel):
     rent_collected: float
     open_requests: int
     timeline: dict
+
+
+class PropertyRequest(BaseModel):
+    address: str
+    city: str
+    state: str
+    zip_code: str
+    property_type: str = Field(..., pattern="^(apartment|house|condo|townhouse)$")
+    units: int = Field(..., gt=0)
+
+
+class PropertyResponse(BaseModel):
+    id: int
+    address: str
+    city: str
+    state: str
+    zip_code: str
+    property_type: str
+    units: int
+    created_at: str
 
 
 @app.get("/api/health")
@@ -514,6 +552,59 @@ def export_notifications():
     writer.writeheader()
     writer.writerows([dict(row) for row in rows])
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=notifications.csv"})
+
+
+@app.post("/api/properties", response_model=PropertyResponse)
+def add_property(payload: PropertyRequest) -> PropertyResponse:
+    created_at = datetime.now(timezone.utc).isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO properties (address, city, state, zip_code, property_type, units, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.address,
+                payload.city,
+                payload.state,
+                payload.zip_code,
+                payload.property_type,
+                payload.units,
+                created_at,
+            ),
+        )
+        property_id = cur.lastrowid
+
+    return PropertyResponse(
+        id=property_id,
+        address=payload.address,
+        city=payload.city,
+        state=payload.state,
+        zip_code=payload.zip_code,
+        property_type=payload.property_type,
+        units=payload.units,
+        created_at=created_at,
+    )
+
+
+@app.get("/api/properties")
+def get_properties():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM properties ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/properties/csv")
+def export_properties():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM properties ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=properties.csv"})
 
 
 @app.get("/api/pulse", response_model=PulseResponse)

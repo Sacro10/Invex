@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>INDEX - Tenant Communication</title>
+    <title>INDEX - Property Management</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -64,6 +64,7 @@
           <a href="maintenance.html">Maintenance</a>
           <a href="accounting.html">Accounting</a>
           <a href="lease-renewal.html">Renewals</a>
+          <a href="communication.html">Comms</a>
           <a class="nav-cta" href="index.html#cta">Get a demo</a>
         </nav>
       </header>
@@ -71,40 +72,48 @@
       <main class="feature-page">
         <a class="back-link" href="index.html">Back to overview</a>
         <section class="feature-hero">
-          <p class="eyebrow">Tenant communication portal</p>
-          <h1>Automated reminders and message delivery.</h1>
+          <p class="eyebrow">Property portfolio management</p>
+          <h1>Add and manage your properties.</h1>
           <p class="lead">
-            Queue a notification for email, SMS, or the tenant portal and track
-            its delivery status.
+            Add new properties to your portfolio and view all your managed properties.
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/notifications" data-view-endpoint="/api/notifications" data-export-endpoint="/api/export/notifications/csv">
+        <form class="feature-form" data-endpoint="/api/properties" data-view-endpoint="/api/properties" data-export-endpoint="/api/export/properties/csv">
           <div class="form-grid">
             <label class="form-field">
-              Tenant ID
-              <input type="text" name="tenant_id" placeholder="TEN-302" required />
+              Address
+              <input type="text" name="address" placeholder="123 Main St" required />
             </label>
             <label class="form-field">
-              Channel
-              <select name="channel" required>
-                <option value="email">Email</option>
-                <option value="sms">SMS</option>
-                <option value="portal">Portal</option>
+              City
+              <input type="text" name="city" placeholder="Anytown" required />
+            </label>
+            <label class="form-field">
+              State
+              <input type="text" name="state" placeholder="CA" required />
+            </label>
+            <label class="form-field">
+              ZIP Code
+              <input type="text" name="zip_code" placeholder="12345" required />
+            </label>
+            <label class="form-field">
+              Property Type
+              <select name="property_type" required>
+                <option value="apartment">Apartment</option>
+                <option value="house">House</option>
+                <option value="condo">Condo</option>
+                <option value="townhouse">Townhouse</option>
               </select>
             </label>
             <label class="form-field">
-              Scheduled for
-              <input type="datetime-local" name="scheduled_for" required />
-            </label>
-            <label class="form-field" style="grid-column: 1 / -1;">
-              Message
-              <textarea name="message" rows="3" placeholder="Your rent is due in 3 days." required></textarea>
+              Number of Units
+              <input type="number" name="units" data-type="int" placeholder="10" required />
             </label>
           </div>
-          <button class="primary" type="submit">Queue reminder</button>
+          <button class="primary" type="submit">Add Property</button>
           <pre class="result"></pre>
-          <button id="view-all">View All Notifications</button>
+          <button id="view-all">View All Properties</button>
           <button id="download-csv">Download CSV</button>
           <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>

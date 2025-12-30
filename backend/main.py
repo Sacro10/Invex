@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -207,7 +207,7 @@ def tenant_screening(payload: ScreeningRequest) -> ScreeningResponse:
     else:
         level = "high"
 
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     with get_conn() as conn:
         cur = conn.execute(
             """
@@ -247,9 +247,9 @@ def maintenance_request(payload: MaintenanceRequest) -> MaintenanceResponse:
         vendor = "GeneralFix Maintenance"
 
     base_days = {"high": 1, "medium": 2, "low": 4}[payload.priority]
-    scheduled_for = (datetime.utcnow() + timedelta(days=base_days)).date().isoformat()
+    scheduled_for = (datetime.now(timezone.utc) + timedelta(days=base_days)).date().isoformat()
     status = "scheduled"
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
 
     with get_conn() as conn:
         cur = conn.execute(
@@ -280,13 +280,13 @@ def maintenance_request(payload: MaintenanceRequest) -> MaintenanceResponse:
 
 @app.post("/api/rent-collection", response_model=RentCollectionResponse)
 def rent_collection(payload: RentCollectionRequest) -> RentCollectionResponse:
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     status = "scheduled"
     paid_at = None
 
     if payload.auto_pay:
         status = "paid"
-        paid_at = datetime.utcnow().isoformat()
+        paid_at = datetime.now(timezone.utc).isoformat()
 
     with get_conn() as conn:
         cur = conn.execute(
@@ -321,7 +321,7 @@ def lease_renewal(payload: LeaseRenewalRequest) -> LeaseRenewalResponse:
     confidence = round(0.6 + 0.3 * payload.occupancy_rate, 2)
     suggested_rent = round(suggested, 2)
 
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     with get_conn() as conn:
         cur = conn.execute(
             """
@@ -349,7 +349,7 @@ def lease_renewal(payload: LeaseRenewalRequest) -> LeaseRenewalResponse:
 
 @app.post("/api/notifications", response_model=NotificationResponse)
 def notification(payload: NotificationRequest) -> NotificationResponse:
-    created_at = datetime.utcnow().isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
     status = "queued"
 
     with get_conn() as conn:

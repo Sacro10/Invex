@@ -28,7 +28,7 @@ app.mount("/", StaticFiles(directory="../", html=True), name="static")
 
 @app.get("/")
 def root():
-    return FileResponse("../index.html")
+    return FileResponse(BASE_DIR.parent / "index.html")
 
 
 def get_conn() -> sqlite3.Connection:

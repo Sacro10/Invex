@@ -21,6 +21,19 @@ const parseValue = (el) => {
   return el.value;
 };
 
+const formatDate = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 forms.forEach((form) => {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -78,6 +91,10 @@ function displayTable(data, containerId, columns) {
     table += "<tr>";
     columns.forEach(col => {
       let value = row[col.key];
+      // Format dates
+      if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+        value = formatDate(value);
+      }
       if (col.key === "status" && containerId === "maintenance-table") {
         // Add Mark Resolved button for open requests
         if (value === "open") {

@@ -123,7 +123,12 @@ function displayTable(data) {
 }
 
 function updateStatus(id, status) {
-  fetch(`/api/maintenance-requests/${id}?status=${status}`, { method: 'PUT' })
+  alert('Updating request ' + id + ' to ' + status);
+  fetch(`/api/maintenance-requests/${id}`, { 
+    method: 'PUT', 
+    headers: { 'Content-Type': 'application/json' }, 
+    body: JSON.stringify({ status: status }) 
+  })
     .then(() => {
       // Refresh the table
       const viewAllBtn = document.getElementById('view-all');
@@ -131,5 +136,5 @@ function updateStatus(id, status) {
         viewAllBtn.click();
       }
     })
-    .catch(err => alert('Error updating status'));
+    .catch(err => alert('Error updating status: ' + err.message));
 }

@@ -397,9 +397,11 @@ def export_maintenance_requests():
 
 
 @app.put("/api/maintenance-requests/{request_id}")
-def update_maintenance_request(request_id: int, status: str):
-    with get_conn() as conn:
-        conn.execute("UPDATE maintenance_requests SET status = ? WHERE id = ?", (status, request_id))
+def update_maintenance_request(request_id: int, payload: dict):
+    status = payload.get("status")
+    if status:
+        with get_conn() as conn:
+            conn.execute("UPDATE maintenance_requests SET status = ? WHERE id = ?", (status, request_id))
     return {"message": "Status updated"}
 
 

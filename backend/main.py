@@ -164,6 +164,21 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS leases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id TEXT NOT NULL,
+                property_id TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                rent_amount REAL NOT NULL,
+                deposit REAL NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
 
 
 @app.on_event("startup")
@@ -234,6 +249,21 @@ class NotificationRequest(BaseModel):
 
 
 class NotificationResponse(BaseModel):
+    id: int
+    status: str
+    created_at: str
+
+
+class LeaseRequest(BaseModel):
+    tenant_id: str
+    property_id: str
+    start_date: str
+    end_date: str
+    rent_amount: float
+    deposit: float
+
+
+class LeaseResponse(BaseModel):
     id: int
     status: str
     created_at: str
@@ -614,6 +644,57 @@ def export_properties():
     writer.writeheader()
     writer.writerows([dict(row) for row in rows])
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=properties.csv"})
+
+
+@app.post("/api/leases", response_model=LeaseResponse)
+def create_lease(payload: LeaseRequest) -> LeaseResponse:
+    created_at = datetime.now(timezone.utc).isoformat()
+    status = "active"
+
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO leases (tenant_id, property_id, start_date, end_date, rent_amount, deposit, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.tenant_id,
+                payload.property_id,
+                payload.start_date,
+                payload.end_date,
+                payload.rent_amount,
+                payload.deposit,
+                status,
+                created_at,
+            ),
+        )
+        lease_id = cur.lastrowid
+
+    return LeaseResponse(
+        id=lease_id,
+        status=status,
+        created_at=created_at,
+    )
+
+
+@app.get("/api/leases")
+def get_leases():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM leases ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/leases/csv")
+def export_leases():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM leases ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=leases.csv"})
 
 
 @app.get("/api/pulse", response_model=PulseResponse)

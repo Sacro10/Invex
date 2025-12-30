@@ -107,6 +107,12 @@
           <button class="primary" type="submit">Schedule collection</button>
           <pre class="result"></pre>
         </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/rent-collections" data-table="rent-table" data-columns='[{"key":"id","label":"ID"},{"key":"tenant_id","label":"Tenant"},{"key":"amount","label":"Amount"},{"key":"due_date","label":"Due Date"},{"key":"status","label":"Status"},{"key":"paid_at","label":"Paid At"},{"key":"created_at","label":"Created"}]'>View All</button>
+          <button class="secondary export-csv" data-endpoint="/api/export/rent-collections/csv">Export CSV</button>
+        </div>
+        <div id="rent-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>

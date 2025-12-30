@@ -104,6 +104,11 @@
           <button class="primary" type="submit">Queue reminder</button>
           <pre class="result"></pre>
         </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/notifications" data-table="notification-table" data-columns='[{"key":"id","label":"ID"},{"key":"tenant_id","label":"Tenant"},{"key":"channel","label":"Channel"},{"key":"message","label":"Message"},{"key":"scheduled_for","label":"Scheduled"},{"key":"status","label":"Status"},{"key":"created_at","label":"Created"}]'>View All</button>
+        </div>
+        <div id="notification-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>

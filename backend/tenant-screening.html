@@ -100,6 +100,12 @@
           <button class="primary" type="submit">Run screening</button>
           <pre class="result"></pre>
         </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/tenant-screenings" data-table="screening-table" data-columns='[{"key":"id","label":"ID"},{"key":"name","label":"Name"},{"key":"income","label":"Income"},{"key":"credit_score","label":"Credit Score"},{"key":"evictions","label":"Evictions"},{"key":"risk_score","label":"Risk Score"},{"key":"risk_level","label":"Risk Level"},{"key":"created_at","label":"Created"}]'>View All</button>
+          <button class="secondary export-csv" data-endpoint="/api/export/tenant-screenings/csv">Export CSV</button>
+        </div>
+        <div id="screening-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>

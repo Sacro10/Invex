@@ -96,6 +96,12 @@
           <button class="primary" type="submit">Generate renewal</button>
           <pre class="result"></pre>
         </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/lease-renewals" data-table="renewal-table" data-columns='[{"key":"id","label":"ID"},{"key":"current_rent","label":"Current Rent"},{"key":"market_rent","label":"Market Rent"},{"key":"occupancy_rate","label":"Occupancy"},{"key":"suggested_rent","label":"Suggested Rent"},{"key":"confidence","label":"Confidence"},{"key":"created_at","label":"Created"}]'>View All</button>
+          <button class="secondary export-csv" data-endpoint="/api/export/lease-renewals/csv">Export CSV</button>
+        </div>
+        <div id="renewal-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>

@@ -57,3 +57,101 @@ forms.forEach((form) => {
     }
   });
 });
+
+// Function to display data in a table
+function displayTable(data, containerId, columns) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (!data || data.length === 0) {
+    container.innerHTML = "<p>No data available.</p>";
+    return;
+  }
+
+  let table = "<table><thead><tr>";
+  columns.forEach(col => {
+    table += `<th>${col.label}</th>`;
+  });
+  table += "</tr></thead><tbody>";
+
+  data.forEach(row => {
+    table += "<tr>";
+    columns.forEach(col => {
+      let value = row[col.key];
+      if (col.key === "status" && containerId === "maintenance-table") {
+        // Add Mark Resolved button for open requests
+        if (value === "open") {
+          value = `<button class="mark-resolved" data-id="${row.id}">Mark Resolved</button>`;
+        }
+      }
+      table += `<td>${value}</td>`;
+    });
+    table += "</tr>";
+  });
+
+  table += "</tbody></table>";
+  container.innerHTML = table;
+
+  // Add event listeners for Mark Resolved buttons
+  if (containerId === "maintenance-table") {
+    document.querySelectorAll(".mark-resolved").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const id = e.target.dataset.id;
+        updateStatus(id, "resolved");
+      });
+    });
+  }
+}
+
+// Function to update maintenance request status
+async function updateStatus(requestId, status) {
+  try {
+    const response = await fetch(`${API_BASE}/api/maintenance-requests/${requestId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (response.ok) {
+      // Refresh the table
+      document.getElementById("view-all-maintenance").click();
+    } else {
+      alert("Failed to update status");
+    }
+  } catch (error) {
+    alert("Error updating status: " + error.message);
+  }
+}
+
+// Handle View All buttons
+document.addEventListener("DOMContentLoaded", () => {
+  const viewAllButtons = document.querySelectorAll(".view-all");
+  viewAllButtons.forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const endpoint = e.target.dataset.endpoint;
+      const tableId = e.target.dataset.table;
+      const columns = JSON.parse(e.target.dataset.columns);
+
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`);
+        const data = await response.json();
+        displayTable(data, tableId, columns);
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    });
+  });
+
+  // Handle Export buttons
+  const exportButtons = document.querySelectorAll(".export-csv");
+  exportButtons.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const endpoint = e.target.dataset.endpoint;
+      const link = document.createElement("a");
+      link.href = `${API_BASE}${endpoint}`;
+      link.download = "";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  });
+});

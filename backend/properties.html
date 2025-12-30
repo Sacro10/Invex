@@ -113,10 +113,13 @@
           </div>
           <button class="primary" type="submit">Add Property</button>
           <pre class="result"></pre>
-          <button id="view-all">View All Properties</button>
-          <button id="download-csv">Download CSV</button>
-          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/properties" data-table="properties-table" data-columns='[{"key":"id","label":"ID"},{"key":"address","label":"Address"},{"key":"city","label":"City"},{"key":"state","label":"State"},{"key":"zip_code","label":"ZIP"},{"key":"property_type","label":"Type"},{"key":"units","label":"Units"}]'>View All</button>
+          <button class="secondary export-csv" data-endpoint="/api/export/properties/csv">Export CSV</button>
+        </div>
+        <div id="properties-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>

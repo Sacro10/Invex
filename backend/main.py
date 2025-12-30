@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -24,11 +24,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/", StaticFiles(directory="../", html=True), name="static")
+# app.mount("/", StaticFiles(directory="../", html=True), name="static")
 
 @app.get("/")
 def root():
-    return FileResponse(BASE_DIR.parent / "index.html")
+    return HTMLResponse("<h1>App is running!</h1><p>Check <a href='/api/health'>/api/health</a></p>")
 
 
 def get_conn() -> sqlite3.Connection:

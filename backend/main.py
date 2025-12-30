@@ -396,6 +396,13 @@ def export_maintenance_requests():
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=maintenance_requests.csv"})
 
 
+@app.put("/api/maintenance-requests/{request_id}")
+def update_maintenance_request(request_id: int, status: str):
+    with get_conn() as conn:
+        conn.execute("UPDATE maintenance_requests SET status = ? WHERE id = ?", (status, request_id))
+    return {"message": "Status updated"}
+
+
 @app.post("/api/rent-collection", response_model=RentCollectionResponse)
 def rent_collection(payload: RentCollectionRequest) -> RentCollectionResponse:
     created_at = datetime.now(timezone.utc).isoformat()

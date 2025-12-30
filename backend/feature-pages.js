@@ -29,6 +29,11 @@ forms.forEach((form) => {
       result.textContent = "Running...";
       result.classList.remove("error");
     }
+    // Hide table when submitting
+    const tableContainer = document.getElementById('table-container');
+    if (tableContainer) {
+      tableContainer.style.display = 'none';
+    }
 
     const payload = {};
     form.querySelectorAll("input, select, textarea").forEach((el) => {
@@ -91,11 +96,40 @@ function displayTable(data) {
   const container = document.getElementById('table-container');
   if (!container || !data.length) return;
   container.style.display = 'block';
+  // Hide the result
+  const result = document.querySelector('.result');
+  if (result) {
+    result.style.display = 'none';
+  }
   const keys = Object.keys(data[0]);
   let html = '<table border="1" style="width:100%; border-collapse:collapse;"><thead><tr>';
   html += keys.map(k => `<th style="padding:8px; background:#f0f0f0;">${k}</th>`).join('');
+  // Add Actions column for maintenance
+  const isMaintenance = document.querySelector("form[data-endpoint*='maintenance']");
+  if (isMaintenance) {
+    html += '<th style="padding:8px; background:#f0f0f0;">Actions</th>';
+  }
   html += '</tr></thead><tbody>';
-  html += data.map(row => '<tr>' + keys.map(k => `<td style="padding:8px;">${row[k]}</td>`).join('') + '</tr>').join('');
+  html += data.map(row => {
+    let rowHtml = '<tr>' + keys.map(k => `<td style="padding:8px;">${row[k]}</td>`).join('') + '';
+    if (isMaintenance) {
+      rowHtml += `<td style="padding:8px;"><button onclick="updateStatus(${row.id}, 'resolved')">Mark Resolved</button></td>`;
+    }
+    rowHtml += '</tr>';
+    return rowHtml;
+  }).join('');
   html += '</tbody></table>';
   container.innerHTML = html;
+}
+
+function updateStatus(id, status) {
+  fetch(`/api/maintenance-requests/${id}?status=${status}`, { method: 'PUT' })
+    .then(() => {
+      // Refresh the table
+      const viewAllBtn = document.getElementById('view-all');
+      if (viewAllBtn) {
+        viewAllBtn.click();
+      }
+    })
+    .catch(err => alert('Error updating status'));
 }

@@ -78,7 +78,7 @@
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/rent-collection">
+        <form class="feature-form" data-endpoint="/api/rent-collection" data-view-endpoint="/api/rent-collections" data-export-endpoint="/api/export/rent-collections/csv">
           <div class="form-grid">
             <label class="form-field">
               Tenant ID
@@ -106,6 +106,9 @@
           </div>
           <button class="primary" type="submit">Schedule collection</button>
           <pre class="result"></pre>
+          <button id="view-all">View All Collections</button>
+          <button id="download-csv">Download CSV</button>
+          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
       </main>
     </div>

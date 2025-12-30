@@ -47,7 +47,7 @@ forms.forEach((form) => {
         throw new Error(data.detail || "Request failed");
       }
       if (result) {
-        result.textContent = JSON.stringify(data, null, 2);
+        displayTable([data]);
       }
     } catch (error) {
       if (result) {
@@ -57,3 +57,45 @@ forms.forEach((form) => {
     }
   });
 });
+
+// View All button
+const viewAllBtn = document.getElementById('view-all');
+if (viewAllBtn) {
+  viewAllBtn.addEventListener('click', async () => {
+    const form = document.querySelector("form[data-endpoint]");
+    const endpoint = form ? form.dataset.viewEndpoint : null;
+    if (!endpoint) return;
+    try {
+      const response = await fetch(endpoint);
+      const data = await response.json();
+      displayTable(data);
+    } catch (e) {
+      alert('Error fetching data');
+    }
+  });
+}
+
+// Download CSV button
+const downloadBtn = document.getElementById('download-csv');
+if (downloadBtn) {
+  downloadBtn.addEventListener('click', () => {
+    const form = document.querySelector("form[data-endpoint]");
+    const endpoint = form ? form.dataset.exportEndpoint : null;
+    if (endpoint) {
+      window.location = endpoint;
+    }
+  });
+}
+
+function displayTable(data) {
+  const container = document.getElementById('table-container');
+  if (!container || !data.length) return;
+  container.style.display = 'block';
+  const keys = Object.keys(data[0]);
+  let html = '<table border="1" style="width:100%; border-collapse:collapse;"><thead><tr>';
+  html += keys.map(k => `<th style="padding:8px; background:#f0f0f0;">${k}</th>`).join('');
+  html += '</tr></thead><tbody>';
+  html += data.map(row => '<tr>' + keys.map(k => `<td style="padding:8px;">${row[k]}</td>`).join('') + '</tr>').join('');
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}

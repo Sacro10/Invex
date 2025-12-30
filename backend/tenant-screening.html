@@ -78,7 +78,7 @@
           </p>
         </section>
 
-        <form class="feature-form" data-endpoint="/api/tenant-screening">
+        <form class="feature-form" data-endpoint="/api/tenant-screening" data-view-endpoint="/api/tenant-screenings" data-export-endpoint="/api/export/tenant-screenings/csv">
           <div class="form-grid">
             <label class="form-field">
               Applicant name
@@ -99,6 +99,9 @@
           </div>
           <button class="primary" type="submit">Run screening</button>
           <pre class="result"></pre>
+          <button id="view-all">View All Screenings</button>
+          <button id="download-csv">Download CSV</button>
+          <div id="table-container" style="display:none; margin-top:20px;"></div>
         </form>
       </main>
     </div>

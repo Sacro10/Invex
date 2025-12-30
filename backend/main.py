@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -233,6 +233,26 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/api/tenant-screenings")
+def get_tenant_screenings():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM tenant_screenings ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/tenant-screenings/csv")
+def export_tenant_screenings():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM tenant_screenings ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=tenant_screenings.csv"})
+
+
 @app.post("/api/tenant-screening", response_model=ScreeningResponse)
 def tenant_screening(payload: ScreeningRequest) -> ScreeningResponse:
     credit_factor = (payload.credit_score - 300) / 550
@@ -318,6 +338,26 @@ def maintenance_request(payload: MaintenanceRequest) -> MaintenanceResponse:
     )
 
 
+@app.get("/api/maintenance-requests")
+def get_maintenance_requests():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM maintenance_requests ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/maintenance-requests/csv")
+def export_maintenance_requests():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM maintenance_requests ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=maintenance_requests.csv"})
+
+
 @app.post("/api/rent-collection", response_model=RentCollectionResponse)
 def rent_collection(payload: RentCollectionRequest) -> RentCollectionResponse:
     created_at = datetime.now(timezone.utc).isoformat()
@@ -351,6 +391,26 @@ def rent_collection(payload: RentCollectionRequest) -> RentCollectionResponse:
         created_at=created_at,
         paid_at=paid_at,
     )
+
+
+@app.get("/api/rent-collections")
+def get_rent_collections():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM rent_collections ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/rent-collections/csv")
+def export_rent_collections():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM rent_collections ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=rent_collections.csv"})
 
 
 @app.post("/api/lease-renewal", response_model=LeaseRenewalResponse)
@@ -387,6 +447,26 @@ def lease_renewal(payload: LeaseRenewalRequest) -> LeaseRenewalResponse:
     )
 
 
+@app.get("/api/lease-renewals")
+def get_lease_renewals():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM lease_renewals ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/lease-renewals/csv")
+def export_lease_renewals():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM lease_renewals ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=lease_renewals.csv"})
+
+
 @app.post("/api/notifications", response_model=NotificationResponse)
 def notification(payload: NotificationRequest) -> NotificationResponse:
     created_at = datetime.now(timezone.utc).isoformat()
@@ -414,6 +494,26 @@ def notification(payload: NotificationRequest) -> NotificationResponse:
         status=status,
         created_at=created_at,
     )
+
+
+@app.get("/api/notifications")
+def get_notifications():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM notifications ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/export/notifications/csv")
+def export_notifications():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM notifications ORDER BY created_at DESC").fetchall()
+    if not rows:
+        return Response("No data", media_type="text/plain")
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(dict(rows[0]).keys()))
+    writer.writeheader()
+    writer.writerows([dict(row) for row in rows])
+    return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=notifications.csv"})
 
 
 @app.get("/api/pulse", response_model=PulseResponse)

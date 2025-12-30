@@ -24,7 +24,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
+# app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
 # @app.get("/")
 # def root():
@@ -671,3 +671,6 @@ def pulse() -> PulseResponse:
             "screening": screening_text(),
         },
     )
+
+
+app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")

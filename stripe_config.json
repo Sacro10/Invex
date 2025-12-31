@@ -1,0 +1,26 @@
+{
+  "products": [
+    {
+      "name": "Core Plan",
+      "description": "Essential property management features",
+      "price_per_unit": 200
+    },
+    {
+      "name": "Growth Plan",
+      "description": "Advanced property management with analytics",
+      "price_per_unit": 400
+    },
+    {
+      "name": "Premium Plan",
+      "description": "Full-featured property management suite",
+      "price_per_unit": 500
+    }
+  ],
+  "price_ids": {},
+  "webhook_url": "https://your-app.railway.app/api/billing/webhook",
+  "webhook_events": [
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted"
+  ]
+}

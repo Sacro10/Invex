@@ -437,6 +437,7 @@ class AuthResponse(BaseModel):
     user_id: int
     org_id: int
     email: str
+    role: str
 
 
 @app.post("/api/auth/register", response_model=AuthResponse)
@@ -481,7 +482,8 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         token_type="bearer",
         user_id=user.id,
         org_id=user.org_id,
-        email=user.email
+        email=user.email,
+        role=user.role
     )
 
 
@@ -508,7 +510,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         token_type="bearer",
         user_id=user.id,
         org_id=user.org_id,
-        email=user.email
+        email=user.email,
+        role=user.role
     )
 
 

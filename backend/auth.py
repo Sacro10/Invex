@@ -21,12 +21,18 @@ SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context - configure to avoid bcrypt bug detection
+pwd_context = CryptContext(
+    schemes=["bcrypt"], 
+    deprecated="auto",
+    bcrypt__ident="2b"  # Use 2b variant which doesn't have the bug detection issue
+)
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    return pwd_context.hash(password)
+    # Truncate password to 72 bytes as required by bcrypt
+    truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    return pwd_context.hash(truncated_password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a bcrypt hash."""
@@ -35,13 +41,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     """Create a JWT access token with optional expiration."""
+    import time
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": int(time.time()) + 1800})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -163,32 +170,32 @@ def get_org_plan(db: Session, org_id: int) -> str:
         return "core"
 
 
-async def require_capability(
-    capability: str,
-    user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> Tuple[User, int]:
-    """FastAPI dependency that checks if the organization has access to a capability.
+def require_capability(capability: str):
+    """Factory function that returns a FastAPI dependency for capability checking.
     
     Args:
         capability: The capability name to check
         
     Returns:
-        Tuple[User, int]: Same as get_current_user
-        
-    Raises:
-        HTTPException: 403 if capability not available in current plan
+        Dependency function that can be used with Depends()
     """
-    user, org_id = user_data
+    async def dependency(
+        user_data=Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ) -> Tuple[User, int]:
+        """Actual dependency function that checks capability access."""
+        user, org_id = user_data
+        
+        # Get current plan
+        plan = get_org_plan(db, org_id)
+        
+        # Check if capability is available in plan
+        if capability not in PLAN_CAPABILITIES.get(plan, []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This feature requires a higher plan. Current plan: {plan}. Required capability: {capability}",
+            )
+        
+        return user, org_id
     
-    # Get current plan
-    plan = get_org_plan(db, org_id)
-    
-    # Check if capability is available in plan
-    if capability not in PLAN_CAPABILITIES.get(plan, []):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"This feature requires a higher plan. Current plan: {plan}. Required capability: {capability}",
-        )
-    
-    return user, org_id
+    return dependency

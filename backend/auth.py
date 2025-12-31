@@ -95,6 +95,7 @@ async def get_current_user(
         )
     user_id = int(user_id_str)
     org_id: int = payload.get("org_id")
+    if org_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token claims",

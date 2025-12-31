@@ -888,39 +888,44 @@ def maintenance_request(
     """Create a maintenance request with auto vendor routing."""
     user, org_id = user_data
     
+    # Determine category from issue keywords
     issue_lower = payload.issue.lower()
+    category = "general"
+    if any(keyword in issue_lower for keyword in ["leak", "plumbing", "sink", "toilet", "pipe", "faucet"]):
+        category = "plumbing"
+    elif any(keyword in issue_lower for keyword in ["hvac", "heat", "ac", "cool", "thermostat", "furnace", "air"]):
+        category = "hvac"
+    elif any(keyword in issue_lower for keyword in ["electric", "outlet", "light", "power", "circuit", "wiring"]):
+        category = "electrical"
     
-    # Determine required specialty based on issue keywords
-    required_specialty = None
-    if any(keyword in issue_lower for keyword in ["leak", "plumbing", "sink", "toilet"]):
-        required_specialty = "plumbing"
-    elif any(keyword in issue_lower for keyword in ["hvac", "heat", "ac", "cool", "thermostat"]):
-        required_specialty = "hvac"
-    elif any(keyword in issue_lower for keyword in ["electric", "outlet", "light", "power"]):
-        required_specialty = "electrical"
+    # Query active vendors for this org
+    active_vendors = db.query(Vendor).filter(
+        Vendor.org_id == org_id,
+        Vendor.is_active == True
+    ).all()
     
-    # Find active vendor with matching specialty
+    selected_vendor = None
     vendor_name = "GeneralFix Maintenance"  # Default fallback
-    if required_specialty:
-        vendor_query = db.query(Vendor).filter(
-            Vendor.org_id == org_id,
-            Vendor.is_active == True
-        )
-        
-        for vendor in vendor_query.all():
-            specialties = json.loads(vendor.specialties)
-            if required_specialty in specialties:
-                vendor_name = vendor.name
-                break
     
-    # If no specialty match found, use any active vendor as fallback
-    if vendor_name == "GeneralFix Maintenance":
-        fallback_vendor = db.query(Vendor).filter(
-            Vendor.org_id == org_id,
-            Vendor.is_active == True
-        ).first()
-        if fallback_vendor:
-            vendor_name = fallback_vendor.name
+    if active_vendors:
+        # Find vendors with exact specialty match
+        specialty_matches = []
+        for vendor in active_vendors:
+            specialties = json.loads(vendor.specialties)
+            if category in specialties:
+                specialty_matches.append(vendor)
+        
+        if specialty_matches:
+            # Use round-robin for specialty matches (simple implementation)
+            # For now, just pick the first one - could be enhanced with a counter
+            selected_vendor = specialty_matches[0]
+        else:
+            # No specialty match, use any active vendor (round-robin or random)
+            # For simplicity, pick the first active vendor
+            selected_vendor = active_vendors[0]
+        
+        if selected_vendor:
+            vendor_name = selected_vendor.name
 
     base_days = {"high": 1, "medium": 2, "low": 4}[payload.priority]
     scheduled_for = (datetime.now(timezone.utc) + timedelta(days=base_days)).date().isoformat()
@@ -932,6 +937,7 @@ def maintenance_request(
         property_id=payload.property_id,
         issue=payload.issue,
         priority=payload.priority,
+        vendor_id=selected_vendor.id if selected_vendor else None,
         vendor=vendor_name,
         scheduled_for=scheduled_for,
         status=status,
@@ -973,6 +979,7 @@ def get_maintenance_requests(
             "property_id": r.property_id,
             "issue": r.issue,
             "priority": r.priority,
+            "vendor_id": r.vendor_id,
             "vendor": r.vendor,
             "scheduled_for": r.scheduled_for,
             "status": r.status,
@@ -1002,7 +1009,7 @@ def export_maintenance_requests(
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["id", "property_id", "issue", "priority", "vendor", "scheduled_for", "status", "created_at"]
+        fieldnames=["id", "property_id", "issue", "priority", "vendor_id", "vendor", "scheduled_for", "status", "created_at"]
     )
     writer.writeheader()
     for r in requests:
@@ -1011,6 +1018,7 @@ def export_maintenance_requests(
             "property_id": r.property_id,
             "issue": r.issue,
             "priority": r.priority,
+            "vendor_id": r.vendor_id,
             "vendor": r.vendor,
             "scheduled_for": r.scheduled_for,
             "status": r.status,

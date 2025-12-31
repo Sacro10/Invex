@@ -80,13 +80,15 @@ class MaintenanceRequest(Base):
     property_id = Column(String, nullable=False)
     issue = Column(String, nullable=False)
     priority = Column(String, nullable=False)
-    vendor = Column(String, nullable=False)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    vendor = Column(String, nullable=False)  # Keep for backward compatibility
     scheduled_for = Column(String, nullable=False)
     status = Column(String, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     organization = relationship("Organization", back_populates="maintenance")
+    vendor_rel = relationship("Vendor", backref="maintenance_requests")
 
 
 class Vendor(Base):

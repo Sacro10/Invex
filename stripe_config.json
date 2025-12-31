@@ -3,17 +3,17 @@
     {
       "name": "Core Plan",
       "description": "Essential property management features",
-      "price_per_unit": 200
+      "price_monthly": 0
     },
     {
       "name": "Growth Plan",
       "description": "Advanced property management with analytics",
-      "price_per_unit": 400
+      "price_monthly": 1000
     },
     {
       "name": "Premium Plan",
       "description": "Full-featured property management suite",
-      "price_per_unit": 500
+      "price_monthly": 2000
     }
   ],
   "price_ids": {

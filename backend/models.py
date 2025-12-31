@@ -85,10 +85,34 @@ class MaintenanceRequest(Base):
     scheduled_for = Column(String, nullable=False)
     status = Column(String, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    # SLA tracking fields
+    sla_due_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    escalated = Column(Boolean, default=False, nullable=False)
 
     # Relationships
     organization = relationship("Organization", back_populates="maintenance")
-    vendor_rel = relationship("Vendor", backref="maintenance_requests")
+    assigned_vendor = relationship("Vendor", backref="maintenance_requests")
+
+
+class MaintenanceDispatchLog(Base):
+    """Logs vendor dispatch notifications (emails, etc.)"""
+    __tablename__ = "maintenance_dispatch_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    request_id = Column(Integer, ForeignKey("maintenance_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
+    channel = Column(String, nullable=False)  # "email", "sms", etc.
+    status = Column(String, nullable=False)  # "sent", "failed", "pending"
+    error = Column(String, nullable=True)  # Error message if failed
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization", backref="dispatch_logs")
+    maintenance_request = relationship("MaintenanceRequest", backref="dispatch_logs")
+    vendor = relationship("Vendor", backref="dispatch_logs")
 
 
 class Vendor(Base):
@@ -102,10 +126,32 @@ class Vendor(Base):
     specialties = Column(String, nullable=False)  # JSON string for specialties list
     service_zip_codes = Column(String, nullable=True)  # JSON string for zip codes list
     is_active = Column(Boolean, default=True, nullable=False)
+    # Performance metrics
+    total_jobs_assigned = Column(Integer, default=0, nullable=False)
+    jobs_completed = Column(Integer, default=0, nullable=False)
+    average_rating = Column(Float, nullable=True)  # 1-5 scale
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     organization = relationship("Organization", back_populates="vendors")
+    maintenance_requests = relationship("MaintenanceRequest", backref="assigned_vendor")
+
+
+class VendorAssignmentCounter(Base):
+    """Tracks round-robin assignment counters for vendor selection."""
+    __tablename__ = "vendor_assignment_counters"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    category = Column(String, nullable=False)  # plumbing, hvac, electrical, general
+    last_assigned_vendor_id = Column(Integer, ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True)
+    assignment_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization", backref="assignment_counters")
+    last_assigned_vendor = relationship("Vendor", backref="assignment_counters")
 
 
 class RentCollection(Base):
@@ -167,7 +213,6 @@ class Property(Base):
     state = Column(String, nullable=False)
     zip_code = Column(String, nullable=False)
     property_type = Column(String, nullable=False)
-    units = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
@@ -219,7 +264,6 @@ class Subscription(Base):
     stripe_customer_id = Column(String, nullable=False)
     stripe_subscription_id = Column(String, nullable=False)
     plan = Column(String, nullable=False)  # core, growth, premium
-    unit_quantity = Column(Integer, nullable=False)
     status = Column(String, nullable=False)  # active, canceled, past_due, etc.
     current_period_end = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -228,19 +272,4 @@ class Subscription(Base):
     organization = relationship("Organization", back_populates="subscriptions")
 
 
-class BillingUpdateRetry(Base):
-    """Queue for failed Stripe billing updates to retry later."""
-    __tablename__ = "billing_update_retries"
 
-    id = Column(Integer, primary_key=True, index=True)
-    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    stripe_subscription_id = Column(String, nullable=False)
-    new_quantity = Column(Integer, nullable=False)
-    error_message = Column(String, nullable=True)
-    retry_count = Column(Integer, default=0)
-    last_attempt = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    next_retry_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-
-    # Relationships
-    organization = relationship("Organization")

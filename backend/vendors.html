@@ -109,7 +109,7 @@
         </form>
 
         <div class="feature-actions">
-          <button class="secondary view-all" data-endpoint="/api/vendors" data-table="vendors-table" data-columns='[{"key":"id","label":"ID"},{"key":"name","label":"Name"},{"key":"email","label":"Email"},{"key":"phone","label":"Phone"},{"key":"specialties","label":"Specialties"},{"key":"service_zip_codes","label":"Service Areas"},{"key":"is_active","label":"Active"},{"key":"actions","label":"Actions"}]'>View All Vendors</button>
+          <button class="secondary view-all" data-endpoint="/api/vendors" data-table="vendors-table" data-columns='[{"key":"id","label":"ID"},{"key":"name","label":"Name"},{"key":"email","label":"Email"},{"key":"phone","label":"Phone"},{"key":"specialties","label":"Specialties"},{"key":"service_zip_codes","label":"Service Areas"},{"key":"total_jobs_assigned","label":"Jobs Assigned"},{"key":"jobs_completed","label":"Jobs Completed"},{"key":"average_rating","label":"Avg Rating"},{"key":"is_active","label":"Active"},{"key":"actions","label":"Actions"}]'>View All Vendors</button>
         </div>
         <div id="vendors-table" class="data-table"></div>
       </main>
@@ -143,9 +143,13 @@
               if (col.key === 'specialties') {
                 const specialties = Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] || '';
                 table += `<td>${specialties}</td>`;
-              } else if (col.key === 'service_zip_codes') {
-                const zips = Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] || '';
-                table += `<td>${zips}</td>`;
+              } else if (col.key === 'total_jobs_assigned') {
+                table += `<td>${row[col.key] || 0}</td>`;
+              } else if (col.key === 'jobs_completed') {
+                table += `<td>${row[col.key] || 0}</td>`;
+              } else if (col.key === 'average_rating') {
+                const rating = row[col.key];
+                table += `<td>${rating ? rating.toFixed(1) + '★' : 'N/A'}</td>`;
               } else if (col.key === 'is_active') {
                 const status = row[col.key] ? 'Active' : 'Inactive';
                 const statusClass = row[col.key] ? 'status-active' : 'status-inactive';

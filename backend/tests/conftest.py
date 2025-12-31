@@ -112,7 +112,6 @@ def test_subscription(db_session, test_org):
         stripe_customer_id="cus_test123",
         stripe_subscription_id="sub_test123",
         plan="core",
-        unit_quantity=5,
         status="active",
         current_period_end=datetime.now(timezone.utc) + timedelta(days=30)
     )

@@ -37,8 +37,9 @@ from models import (
     Organization,
     User,
     Vendor,
+    VendorAssignmentCounter,
+    MaintenanceDispatchLog,
     Subscription as SubscriptionModel,
-    BillingUpdateRetry as BillingUpdateRetryModel,
     Plan,
     MoveInChecklist as MoveInChecklistModel,
 )
@@ -52,6 +53,13 @@ from auth import (
 )
 
 import stripe
+import sendgrid
+from sendgrid.helpers.mail import Mail, Email, To, Content
+from jose import JWTError, jwt
+
+# JWT Configuration
+SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
+ALGORITHM = "HS256"
 
 class MeResponse(BaseModel):
     user_id: int
@@ -89,7 +97,7 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 # Configure structured logging
 logging.basicConfig(
     level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "message": "%(message)s"}',
+    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
     datefmt="%Y-%m-%dT%H:%M:%S"
 )
 
@@ -308,112 +316,94 @@ def on_startup() -> None:
 # BILLING UTILITIES
 # ============================================================================
 
-def calculate_org_total_units(db: Session, org_id: int) -> int:
-    """Calculate total units for an organization by summing all property units."""
-    from sqlalchemy import func
-    result = db.query(func.sum(PropertyModel.units)).filter(PropertyModel.org_id == org_id).scalar()
-    return result or 0
+# ============================================================================
+# EMAIL UTILITIES
+# ============================================================================
 
-
-def update_stripe_subscription_quantity(db: Session, org_id: int, new_quantity: int) -> bool:
-    """Update Stripe subscription quantity for an organization.
-
-    Returns True if successful, False if failed (will be queued for retry).
+def send_vendor_dispatch_email(db: Session, request: MaintenanceRequestModel, vendor: Vendor) -> bool:
+    """Send dispatch email to vendor for maintenance request.
+    
+    Returns True if successful, False if failed.
     """
     try:
-        # Get active subscription
-        sub = db.query(SubscriptionModel).filter(
-            SubscriptionModel.org_id == org_id,
-            SubscriptionModel.status == "active"
-        ).first()
-
-        if not sub:
-            # No active subscription, nothing to update
-            return True
-
-        if sub.unit_quantity == new_quantity:
-            # No change needed
-            return True
-
-        # Update Stripe subscription
-        stripe.Subscription.modify(
-            sub.stripe_subscription_id,
-            items=[{
-                'id': sub.stripe_subscription_id + '_item',  # This might need adjustment based on your Stripe setup
-                'quantity': new_quantity
-            }]
+        sg = sendgrid.SendGridAPIClient(api_key=os.getenv("SENDGRID_API_KEY"))
+        from_email = Email(os.getenv("FROM_EMAIL", "noreply@indexpm.com"))
+        to_email = To(vendor.email)
+        subject = f"New Maintenance Request - {request.property_id}"
+        
+        # Generate signed tokens for accept/decline links
+        accept_token = create_access_token(
+            data={
+                "request_id": request.id,
+                "vendor_id": vendor.id,
+                "action": "accept",
+                "exp": datetime.now(timezone.utc) + timedelta(days=7)  # 7 days expiry
+            }
         )
-
-        # Update local record
-        sub.unit_quantity = new_quantity
+        decline_token = create_access_token(
+            data={
+                "request_id": request.id,
+                "vendor_id": vendor.id,
+                "action": "decline", 
+                "exp": datetime.now(timezone.utc) + timedelta(days=7)  # 7 days expiry
+            }
+        )
+        
+        base_url = os.getenv("FRONTEND_URL", "http://localhost:8000")
+        accept_url = f"{base_url}/api/maintenance-requests/{request.id}/accept?token={accept_token}"
+        decline_url = f"{base_url}/api/maintenance-requests/{request.id}/decline?token={decline_token}"
+        
+        html_content = f"""
+        <html>
+        <body>
+            <h2>New Maintenance Request</h2>
+            <p><strong>Property:</strong> {request.property_id}</p>
+            <p><strong>Issue:</strong> {request.issue}</p>
+            <p><strong>Priority:</strong> {request.priority.title()}</p>
+            <p><strong>Scheduled For:</strong> {request.scheduled_for}</p>
+            <p><strong>Status:</strong> {request.status.title()}</p>
+            
+            <p>Please respond to this request:</p>
+            <p>
+                <a href="{accept_url}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; margin-right: 10px;">Accept Request</a>
+                <a href="{decline_url}" style="background-color: #f44336; color: white; padding: 10px 20px; text-decoration: none;">Decline Request</a>
+            </p>
+            
+            <p>If the links don't work, you can manually accept or decline at: {base_url}</p>
+        </body>
+        </html>
+        """
+        
+        content = Content("text/html", html_content)
+        mail = Mail(from_email, to_email, subject, content)
+        response = sg.client.mail.send.post(request_body=mail.get())
+        
+        # Log successful dispatch
+        log_entry = MaintenanceDispatchLog(
+            org_id=request.org_id,
+            request_id=request.id,
+            vendor_id=vendor.id,
+            channel="email",
+            status="sent"
+        )
+        db.add(log_entry)
         db.commit()
-
+        
         return True
-
+        
     except Exception as e:
-        # Queue for retry
-        retry = BillingUpdateRetryModel(
-            org_id=org_id,
-            stripe_subscription_id=sub.stripe_subscription_id if sub else "",
-            new_quantity=new_quantity,
-            error_message=str(e),
-            retry_count=0,
-            last_attempt=datetime.now(timezone.utc),
-            next_retry_at=datetime.now(timezone.utc) + timedelta(minutes=5)  # Retry in 5 minutes
+        # Log failed dispatch
+        log_entry = MaintenanceDispatchLog(
+            org_id=request.org_id,
+            request_id=request.id,
+            vendor_id=vendor.id,
+            channel="email",
+            status="failed",
+            error=str(e)
         )
-        db.add(retry)
+        db.add(log_entry)
         db.commit()
         return False
-
-
-def process_billing_update_retries(db: Session):
-    """Process queued billing update retries."""
-    from datetime import timedelta
-
-    # Get retries ready for processing
-    retries = db.query(BillingUpdateRetryModel).filter(
-        BillingUpdateRetryModel.next_retry_at <= datetime.now(timezone.utc),
-        BillingUpdateRetryModel.retry_count < 5  # Max 5 retries
-    ).all()
-
-    for retry in retries:
-        try:
-            # Attempt to update Stripe
-            stripe.Subscription.modify(
-                retry.stripe_subscription_id,
-                items=[{
-                    'id': retry.stripe_subscription_id + '_item',
-                    'quantity': retry.new_quantity
-                }]
-            )
-
-            # Update local subscription
-            sub = db.query(SubscriptionModel).filter(
-                SubscriptionModel.stripe_subscription_id == retry.stripe_subscription_id
-            ).first()
-            if sub:
-                sub.unit_quantity = retry.new_quantity
-                db.delete(retry)  # Remove successful retry
-            else:
-                # Subscription not found, remove retry
-                db.delete(retry)
-
-        except Exception as e:
-            # Increment retry count and schedule next attempt
-            retry.retry_count += 1
-            retry.error_message = str(e)
-            retry.last_attempt = datetime.now(timezone.utc)
-
-            if retry.retry_count < 5:
-                # Exponential backoff: 5, 15, 45, 135 minutes
-                delay_minutes = 5 * (3 ** (retry.retry_count - 1))
-                retry.next_retry_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
-            else:
-                # Max retries reached, log and remove
-                print(f"Max retries reached for billing update: {retry.error_message}")
-                db.delete(retry)
-
-    db.commit()
 
 
 # ============================================================================
@@ -586,6 +576,58 @@ class MaintenanceResponse(BaseModel):
         }
 
 
+class MaintenanceUpdateRequest(BaseModel):
+    status: str = Field(..., pattern="^(scheduled|in_progress|completed|cancelled)$")
+    vendor_rating: Optional[float] = Field(None, ge=1, le=5)  # Rating when completing job
+
+
+@app.put("/api/maintenance-requests/{request_id}")
+def update_maintenance_request(
+    request_id: int,
+    payload: MaintenanceUpdateRequest,
+    user_data=Depends(require_capability("maintenance_routing")),
+    db: Session = Depends(get_db),
+):
+    """Update maintenance request status and handle vendor performance tracking."""
+    user, org_id = user_data
+    
+    # Get the maintenance request
+    request = db.query(MaintenanceRequestModel).filter(
+        MaintenanceRequestModel.id == request_id,
+        MaintenanceRequestModel.org_id == org_id
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Maintenance request not found")
+    
+    old_status = request.status
+    request.status = payload.status
+    
+    # Handle vendor performance tracking when job is completed
+    if payload.status == "completed" and old_status != "completed" and request.vendor_id:
+        vendor = db.query(Vendor).filter(Vendor.id == request.vendor_id).first()
+        if vendor:
+            vendor.jobs_completed += 1
+            # Update average rating if provided
+            if payload.vendor_rating is not None:
+                if vendor.average_rating is None:
+                    vendor.average_rating = payload.vendor_rating
+                else:
+                    # Calculate new average: (old_avg * completed_jobs + new_rating) / (completed_jobs + 1)
+                    total_ratings = vendor.jobs_completed
+                    vendor.average_rating = (
+                        (vendor.average_rating * (total_ratings - 1)) + payload.vendor_rating
+                    ) / total_ratings
+    
+    db.commit()
+    
+    return {
+        "id": request.id,
+        "status": request.status,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
 class VendorRequest(BaseModel):
     name: str
     email: str = None
@@ -601,6 +643,9 @@ class VendorResponse(BaseModel):
     phone: str = None
     specialties: List[str]
     service_zip_codes: List[str] = None
+    total_jobs_assigned: int
+    jobs_completed: int
+    average_rating: Optional[float]
     is_active: bool
     created_at: datetime
 
@@ -716,7 +761,6 @@ class PropertyRequest(BaseModel):
     state: str
     zip_code: str
     property_type: str = Field(..., pattern="^(apartment|house|condo|townhouse)$")
-    units: int = Field(..., gt=0)
 
 
 class PropertyResponse(BaseModel):
@@ -727,7 +771,6 @@ class PropertyResponse(BaseModel):
     state: str
     zip_code: str
     property_type: str
-    units: int
     created_at: datetime
 
     class Config:
@@ -738,7 +781,6 @@ class PropertyResponse(BaseModel):
 
 class CheckoutSessionRequest(BaseModel):
     plan: str  # core, growth, premium
-    units: int = Field(gt=0)
 
 
 class CheckoutSessionResponse(BaseModel):
@@ -898,39 +940,86 @@ def maintenance_request(
     elif any(keyword in issue_lower for keyword in ["electric", "outlet", "light", "power", "circuit", "wiring"]):
         category = "electrical"
     
-    # Query active vendors for this org
+    # Get property ZIP code for geographic matching
+    property_zip = None
+    property_obj = db.query(PropertyModel).filter(
+        PropertyModel.org_id == org_id,
+        PropertyModel.property_id == payload.property_id
+    ).first()
+    if property_obj:
+        property_zip = property_obj.zip_code
+    
+    # Enhanced vendor selection with round-robin and geographic matching
+    selected_vendor = None
+    vendor_name = "GeneralFix Maintenance"  # Default fallback
+    
+    # Get or create assignment counter for this category
+    counter = db.query(VendorAssignmentCounter).filter(
+        VendorAssignmentCounter.org_id == org_id,
+        VendorAssignmentCounter.category == category
+    ).first()
+    
+    if not counter:
+        counter = VendorAssignmentCounter(
+            org_id=org_id,
+            category=category,
+            assignment_count=0
+        )
+        db.add(counter)
+        db.flush()  # Get the ID without committing
+    
+    # Find eligible vendors
+    eligible_vendors = []
     active_vendors = db.query(Vendor).filter(
         Vendor.org_id == org_id,
         Vendor.is_active == True
     ).all()
     
-    selected_vendor = None
-    vendor_name = "GeneralFix Maintenance"  # Default fallback
+    for vendor in active_vendors:
+        specialties = json.loads(vendor.specialties) if vendor.specialties else []
+        
+        # Check specialty match
+        specialty_match = category in specialties or category == "general"
+        
+        # Check geographic match if we have property ZIP
+        geo_match = True
+        if property_zip and vendor.service_zip_codes:
+            service_zips = json.loads(vendor.service_zip_codes)
+            geo_match = property_zip in service_zips
+        
+        if specialty_match and geo_match:
+            eligible_vendors.append(vendor)
     
-    if active_vendors:
-        # Find vendors with exact specialty match
-        specialty_matches = []
-        for vendor in active_vendors:
-            specialties = json.loads(vendor.specialties)
-            if category in specialties:
-                specialty_matches.append(vendor)
+    if eligible_vendors:
+        # Sort vendors by last assignment time for round-robin
+        # Use the counter to determine which vendor to pick next
+        vendor_index = counter.assignment_count % len(eligible_vendors)
+        selected_vendor = eligible_vendors[vendor_index]
         
-        if specialty_matches:
-            # Use round-robin for specialty matches (simple implementation)
-            # For now, just pick the first one - could be enhanced with a counter
-            selected_vendor = specialty_matches[0]
-        else:
-            # No specialty match, use any active vendor (round-robin or random)
-            # For simplicity, pick the first active vendor
-            selected_vendor = active_vendors[0]
+        # Update assignment counter
+        counter.assignment_count += 1
+        counter.last_assigned_vendor_id = selected_vendor.id
+        counter.updated_at = datetime.now(timezone.utc)
         
+        # Update vendor performance metrics
+        selected_vendor.total_jobs_assigned += 1
+        
+        vendor_name = selected_vendor.name
+    elif active_vendors:
+        # Fallback: use any active vendor if no eligible ones found
+        selected_vendor = active_vendors[0]
+        vendor_name = selected_vendor.name
         if selected_vendor:
-            vendor_name = selected_vendor.name
+            selected_vendor.total_jobs_assigned += 1
 
     base_days = {"high": 1, "medium": 2, "low": 4}[payload.priority]
     scheduled_for = (datetime.now(timezone.utc) + timedelta(days=base_days)).date().isoformat()
     created_at = datetime.now(timezone.utc)
     status = "scheduled"
+
+    # Calculate SLA due time based on priority (hours)
+    sla_hours = {"high": 2, "medium": 8, "low": 24}[payload.priority]
+    sla_due_at = created_at + timedelta(hours=sla_hours)
 
     request = MaintenanceRequestModel(
         org_id=org_id,
@@ -942,10 +1031,15 @@ def maintenance_request(
         scheduled_for=scheduled_for,
         status=status,
         created_at=created_at,
+        sla_due_at=sla_due_at,
     )
     db.add(request)
     db.commit()
     db.refresh(request)
+
+    # Send dispatch email to vendor if assigned
+    if selected_vendor and selected_vendor.email:
+        send_vendor_dispatch_email(db, request, selected_vendor)
 
     return MaintenanceResponse(
         id=request.id,
@@ -1046,10 +1140,103 @@ def update_maintenance_request(
         return {"message": "Request not found"}
     
     if "status" in payload:
+        old_status = request.status
         request.status = payload["status"]
+        # Set resolved_at when status changes to completed
+        if payload["status"] == "completed" and old_status != "completed":
+            request.resolved_at = datetime.now(timezone.utc)
         db.commit()
     
     return {"message": "Status updated"}
+
+
+@app.post("/api/maintenance-requests/{request_id}/accept")
+def accept_maintenance_request(
+    request_id: int,
+    token: str = Query(..., description="JWT token for vendor authentication"),
+    db: Session = Depends(get_db),
+):
+    """Accept maintenance request via signed token (vendor action)."""
+    try:
+        # Decode and verify token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("action") != "accept" or payload.get("request_id") != request_id:
+            raise HTTPException(status_code=400, detail="Invalid token")
+        
+        vendor_id = payload.get("vendor_id")
+        
+        # Get the maintenance request
+        request = db.query(MaintenanceRequestModel).filter(
+            MaintenanceRequestModel.id == request_id
+        ).first()
+        
+        if not request:
+            raise HTTPException(status_code=404, detail="Maintenance request not found")
+        
+        # Verify vendor assignment
+        if request.vendor_id != vendor_id:
+            raise HTTPException(status_code=403, detail="Not authorized for this request")
+        
+        # Update status
+        request.status = "accepted"
+        request.accepted_at = datetime.now(timezone.utc)
+        db.commit()
+        
+        return {"message": "Request accepted successfully", "status": "accepted"}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@app.post("/api/maintenance-requests/{request_id}/decline")
+def decline_maintenance_request(
+    request_id: int,
+    token: str = Query(..., description="JWT token for vendor authentication"),
+    db: Session = Depends(get_db),
+):
+    """Decline maintenance request via signed token (vendor action)."""
+    try:
+        # Decode and verify token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        if payload.get("action") != "decline" or payload.get("request_id") != request_id:
+            raise HTTPException(status_code=400, detail="Invalid token")
+        
+        vendor_id = payload.get("vendor_id")
+        
+        # Get the maintenance request
+        request = db.query(MaintenanceRequestModel).filter(
+            MaintenanceRequestModel.id == request_id
+        ).first()
+        
+        if not request:
+            raise HTTPException(status_code=404, detail="Maintenance request not found")
+        
+        # Verify vendor assignment
+        if request.vendor_id != vendor_id:
+            raise HTTPException(status_code=403, detail="Not authorized for this request")
+        
+        # Update status and clear vendor assignment
+        request.status = "open"
+        request.vendor_id = None
+        request.vendor = "GeneralFix Maintenance"  # Reset to default
+        
+        # Decrement vendor job count since they declined
+        vendor = db.query(Vendor).filter(Vendor.id == vendor_id).first()
+        if vendor and vendor.total_jobs_assigned > 0:
+            vendor.total_jobs_assigned -= 1
+        
+        db.commit()
+        
+        return {"message": "Request declined. Will be reassigned.", "status": "open"}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 # ============================================================================
@@ -1089,6 +1276,9 @@ def create_vendor(
         phone=vendor.phone,
         specialties=json.loads(vendor.specialties),
         service_zip_codes=json.loads(vendor.service_zip_codes) if vendor.service_zip_codes else None,
+        total_jobs_assigned=vendor.total_jobs_assigned,
+        jobs_completed=vendor.jobs_completed,
+        average_rating=vendor.average_rating,
         is_active=vendor.is_active,
         created_at=created_at,
     )
@@ -1122,6 +1312,9 @@ def get_vendors(
             "phone": v.phone,
             "specialties": json.loads(v.specialties),
             "service_zip_codes": json.loads(v.service_zip_codes) if v.service_zip_codes else None,
+            "total_jobs_assigned": v.total_jobs_assigned,
+            "jobs_completed": v.jobs_completed,
+            "average_rating": v.average_rating,
             "is_active": v.is_active,
             "created_at": v.created_at.isoformat() if v.created_at else None,
         }
@@ -1164,6 +1357,9 @@ def update_vendor(
         phone=vendor.phone,
         specialties=json.loads(vendor.specialties),
         service_zip_codes=json.loads(vendor.service_zip_codes) if vendor.service_zip_codes else None,
+        total_jobs_assigned=vendor.total_jobs_assigned,
+        jobs_completed=vendor.jobs_completed,
+        average_rating=vendor.average_rating,
         is_active=vendor.is_active,
         created_at=vendor.created_at,
     )
@@ -1538,16 +1734,11 @@ def add_property(
         state=payload.state,
         zip_code=payload.zip_code,
         property_type=payload.property_type,
-        units=payload.units,
         created_at=created_at,
     )
     db.add(prop)
     db.commit()
     db.refresh(prop)
-
-    # Update billing with new total units
-    total_units = calculate_org_total_units(db, org_id)
-    update_stripe_subscription_quantity(db, org_id, total_units)
 
     return PropertyResponse(
         id=prop.id,
@@ -1557,7 +1748,6 @@ def add_property(
         state=payload.state,
         zip_code=payload.zip_code,
         property_type=prop.property_type,
-        units=prop.units,
         created_at=created_at,
     )
 
@@ -1590,7 +1780,6 @@ def get_properties(
             "state": p.state,
             "zip_code": p.zip_code,
             "property_type": p.property_type,
-            "units": p.units,
             "created_at": p.created_at.isoformat() if p.created_at else None,
         }
         for p in properties
@@ -1617,33 +1806,24 @@ def update_property(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    old_units = prop.units
-    new_units = payload.units
-
     # Update property
     prop.address = payload.address
     prop.city = payload.city
     prop.state = payload.state
     prop.zip_code = payload.zip_code
     prop.property_type = payload.property_type
-    prop.units = new_units
 
     db.commit()
     db.refresh(prop)
 
-    # If units changed, update billing
-    if old_units != new_units:
-        total_units = calculate_org_total_units(db, org_id)
-        update_stripe_subscription_quantity(db, org_id, total_units)
-
     return PropertyResponse(
         id=prop.id,
+        property_id=prop.property_id,
         address=prop.address,
         city=prop.city,
         state=prop.state,
         zip_code=prop.zip_code,
         property_type=prop.property_type,
-        units=prop.units,
         created_at=prop.created_at.isoformat(),
     )
 
@@ -1669,7 +1849,7 @@ def export_properties(
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=["id", "address", "city", "state", "zip_code", "property_type", "units", "created_at"]
+        fieldnames=["id", "address", "city", "state", "zip_code", "property_type", "created_at"]
     )
     writer.writeheader()
     for p in properties:
@@ -1680,7 +1860,6 @@ def export_properties(
             "state": p.state,
             "zip_code": p.zip_code,
             "property_type": p.property_type,
-            "units": p.units,
             "created_at": p.created_at.isoformat() if p.created_at else "",
         })
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=properties.csv"})
@@ -1921,6 +2100,50 @@ def pulse(
     
     from sqlalchemy import func
     
+    # Check for SLA breaches and escalate if needed (only for Growth plan and above)
+    if user.organization.plan in ["growth", "premium"]:
+        now = datetime.now(timezone.utc)
+        breached_requests = db.query(MaintenanceRequestModel).filter(
+            MaintenanceRequestModel.org_id == org_id,
+            MaintenanceRequestModel.status.in_(["scheduled", "dispatched"]),
+            MaintenanceRequestModel.sla_due_at < now,
+            MaintenanceRequestModel.escalated == False,
+            MaintenanceRequestModel.accepted_at.is_(None)
+        ).all()
+        
+        for request in breached_requests:
+            # Mark as escalated
+            request.escalated = True
+            
+            # Find another vendor (skip the current one)
+            current_vendor_id = request.vendor_id
+            eligible_vendors = db.query(Vendor).filter(
+                Vendor.org_id == org_id,
+                Vendor.is_active == True,
+                Vendor.id != current_vendor_id
+            ).all()
+            
+            if eligible_vendors:
+                # Pick the first available vendor (could implement more sophisticated logic)
+                new_vendor = eligible_vendors[0]
+                request.vendor_id = new_vendor.id
+                request.vendor = new_vendor.name
+                
+                # Send new dispatch email
+                send_vendor_dispatch_email(db, request, new_vendor)
+                
+                # Log the escalation
+                log_entry = MaintenanceDispatchLog(
+                    org_id=org_id,
+                    maintenance_request_id=request.id,
+                    vendor_id=new_vendor.id,
+                    action="escalated",
+                    details=f"SLA breached, reassigned from vendor {current_vendor_id} to {new_vendor.id}"
+                )
+                db.add(log_entry)
+        
+        db.commit()
+    
     # Get average occupancy from recent renewals (filtered by org_id)
     occ_row = db.query(func.avg(LeaseRenewalModel.occupancy_rate)).filter(
         LeaseRenewalModel.org_id == org_id
@@ -2027,12 +2250,12 @@ def create_checkout_session(
         payment_method_types=["card"],
         line_items=[{
             "price": price_id,
-            "quantity": payload.units,
+            "quantity": 1,
         }],
         mode="subscription",
         success_url=os.getenv("FRONTEND_URL", "http://localhost:8000") + "/billing-success.html",
         cancel_url=os.getenv("FRONTEND_URL", "http://localhost:8000") + "/payment.html",
-        metadata={"org_id": str(org_id), "plan": payload.plan, "units": str(payload.units)},
+        metadata={"org_id": str(org_id), "plan": payload.plan},
     )
     
     return CheckoutSessionResponse(url=session.url)
@@ -2082,7 +2305,6 @@ async def stripe_webhook(
         subscription = event.data.object
         org_id = int(subscription.metadata.get("org_id"))
         plan = subscription.metadata.get("plan")
-        units = int(subscription.metadata.get("units"))
         
         # Create or update subscription record
         db_sub = SubscriptionModel(
@@ -2090,7 +2312,6 @@ async def stripe_webhook(
             stripe_customer_id=subscription.customer,
             stripe_subscription_id=subscription.id,
             plan=plan,
-            unit_quantity=units,
             status=subscription.status,
             current_period_end=datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc),
         )
@@ -2105,8 +2326,6 @@ async def stripe_webhook(
         if db_sub:
             db_sub.status = subscription.status
             db_sub.current_period_end = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc)
-            if hasattr(subscription, 'quantity'):
-                db_sub.unit_quantity = subscription.quantity
             db.commit()
     
     return {"status": "ok"}

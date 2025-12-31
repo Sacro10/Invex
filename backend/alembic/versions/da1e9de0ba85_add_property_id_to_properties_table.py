@@ -19,10 +19,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('properties', sa.Column('property_id', sa.String(), nullable=False))
-    op.create_unique_constraint('uq_properties_property_id', 'properties', ['property_id'])
+    with op.batch_alter_table('properties') as batch_op:
+        batch_op.add_column(sa.Column('property_id', sa.String(), nullable=False))
+        batch_op.create_unique_constraint('uq_properties_property_id', ['property_id'])
 
 
 def downgrade() -> None:
-    op.drop_constraint('uq_properties_property_id', 'properties', type_='unique')
-    op.drop_column('properties', 'property_id')
+    with op.batch_alter_table('properties') as batch_op:
+        batch_op.drop_constraint('uq_properties_property_id', type_='unique')
+        batch_op.drop_column('property_id')

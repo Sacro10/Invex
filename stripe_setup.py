@@ -55,10 +55,9 @@ def create_price(product_id, unit_amount, currency="usd", interval="month"):
             product=product_id,
             unit_amount=unit_amount,  # Amount in cents
             currency=currency,
-            recurring={"interval": interval},
-            metadata={"unit_based": "true"}
+            recurring={"interval": interval}
         )
-        print(f"✅ Created price: ${unit_amount/100:.2f}/unit/month (ID: {price.id})")
+        print(f"✅ Created price: ${unit_amount/100:.2f}/month (ID: {price.id})")
         return price.id
     except Exception as e:
         print(f"❌ Error creating price: {e}")
@@ -73,17 +72,17 @@ def main():
         {
             "name": "Core Plan",
             "description": "Essential property management features",
-            "price_per_unit": 200,  # $2.00 per unit
+            "price_monthly": 0,  # $0.00 per month (free)
         },
         {
             "name": "Growth Plan",
             "description": "Advanced property management with analytics",
-            "price_per_unit": 400,  # $4.00 per unit
+            "price_monthly": 1000,  # $10.00 per month
         },
         {
             "name": "Premium Plan",
             "description": "Full-featured property management suite",
-            "price_per_unit": 500,  # $5.00 per unit
+            "price_monthly": 2000,  # $20.00 per month
         }
     ]
 
@@ -93,7 +92,7 @@ def main():
         print(f"\n📦 Creating {plan['name']}...")
         product_id = create_product(plan["name"], plan["description"])
         if product_id:
-            price_id = create_price(product_id, plan["price_per_unit"])
+            price_id = create_price(product_id, plan["price_monthly"])
             if price_id:
                 price_ids[plan["name"].lower().replace(" ", "_")] = price_id
 

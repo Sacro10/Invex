@@ -53,5 +53,26 @@ def get_db():
 
 
 def init_db():
-    """Initialize database by creating all tables."""
-    Base.metadata.create_all(bind=engine)
+    """Initialize database by running Alembic migrations."""
+    from alembic.config import Config
+    from alembic import command
+    import os
+    
+    try:
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        alembic_dir = os.path.join(current_dir, 'alembic')
+        
+        # Create Alembic config
+        alembic_cfg = Config()
+        alembic_cfg.set_main_option('script_location', alembic_dir)
+        alembic_cfg.set_main_option('sqlalchemy.url', DATABASE_URL)
+        
+        # Run migrations
+        command.upgrade(alembic_cfg, 'head')
+        print("Database migrations completed successfully")
+    except Exception as e:
+        print(f"Migration failed: {e}")
+        # Fallback to create_all if migrations fail
+        Base.metadata.create_all(bind=engine)
+        print("Fallback: Created tables using create_all")

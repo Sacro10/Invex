@@ -530,6 +530,16 @@ def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
     )
 
 
+@app.get("/api/health")
+def health():
+    """Health check endpoint for Railway deployment."""
+    return {
+        "status": "ok",
+        "version": app.version,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 # ============================================================================
 # DOMAIN SCHEMAS
 # ============================================================================

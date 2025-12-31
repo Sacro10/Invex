@@ -252,6 +252,43 @@ Business/
 - **Frontend**: Vanilla HTML5, CSS3, JavaScript (no build process)
 - **Deployment**: Railway (or any server supporting Python/Uvicorn)
 
+## Railway Deployment
+
+### Setup Steps
+
+1. **Connect Repository**: Link your GitHub repository to Railway
+
+2. **Project Settings**:
+   - **Root Directory**: `backend`
+   - **Build Command**: (leave empty - Railway auto-detects Python)
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+3. **Environment Variables**:
+   ```bash
+   DATABASE_URL=postgresql://...  # From Railway Postgres plugin
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   JWT_SECRET=your-secure-jwt-secret-here
+   CORS_ORIGINS=https://yourdomain.com
+   ENVIRONMENT=production
+   ```
+
+4. **Database Setup**:
+   - Add Railway Postgres plugin to your project
+   - Copy the `DATABASE_URL` from the plugin settings
+   - Run migrations: `alembic upgrade head` (can be done via Railway shell or locally)
+
+5. **Health Check**:
+   - Railway will automatically detect the `/api/health` endpoint for health monitoring
+   - The endpoint returns `{"status":"ok","version":"1.0.0","timestamp":"..."}`
+
+### Important Notes
+
+- **Static Files**: The marketing site (HTML/CSS/JS) is served from the root via FastAPI's `StaticFiles` mount
+- **API Routes**: All `/api/*` routes remain available alongside static content
+- **Port Configuration**: Railway automatically sets the `PORT` environment variable
+- **Procfile**: A `Procfile` is included in the `backend/` directory for deterministic deployment
+
 ## Development Notes
 
 - **No build process**: Edit HTML/CSS/JS directly; changes reflect immediately in browser

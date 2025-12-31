@@ -502,7 +502,6 @@ def get_maintenance_requests(
 ):
     """Get paginated list of maintenance requests for user's organization."""
     user, org_id = user_data
-    
     requests = (
         db.query(MaintenanceRequestModel)
         .filter(MaintenanceRequestModel.org_id == org_id)

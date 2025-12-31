@@ -23,17 +23,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Password hashing context
 pwd_context = CryptContext(
-    schemes=["bcrypt"], 
-    deprecated="auto"
+    schemes=["pbkdf2_sha256", "bcrypt"], 
+    deprecated="auto",
+    pbkdf2_sha256__default_rounds=30000
 )
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt."""
-    # Ensure password is safely within bcrypt's 72-byte limit
-    # Use a very conservative approach
-    if len(password) > 40:  # 40 chars should be safely under 72 bytes
-        password = password[:40]
-    
+    """Hash a password using PBKDF2-SHA256 (more reliable than bcrypt)."""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

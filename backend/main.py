@@ -2,6 +2,11 @@
 from __future__ import annotations
 # Authenticated user info endpoint
 from fastapi import HTTPException, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+import logging
+import uuid
+from datetime import date, datetime
 
 import csv
 import io
@@ -12,12 +17,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 
-from fastapi import FastAPI, Depends, Query, Request
+from fastapi import FastAPI, Depends, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from database import get_db, init_db, engine
 from models import (
@@ -78,6 +84,22 @@ app = FastAPI(
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "message": "%(message)s"}',
+    datefmt="%Y-%m-%dT%H:%M:%S"
+)
+
+# Custom logger with request ID
+class RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = getattr(record, 'request_id', 'no-request-id')
+        return True
+
+logger = logging.getLogger(__name__)
+logger.addFilter(RequestIdFilter())
+
 class MeResponse(BaseModel):
     user_id: int
     org_id: int
@@ -85,14 +107,142 @@ class MeResponse(BaseModel):
     role: str
     organization_name: str
 
+# Request ID middleware
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    # Add request ID to request state for exception handlers
+    request.state.request_id = request_id
+
+    # Add request ID to logging context
+    class RequestIdFilter(logging.Filter):
+        def filter(self, record):
+            record.request_id = request_id
+            return True
+
+    # Apply filter to all handlers
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(RequestIdFilter())
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    # Security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    # HSTS (HTTP Strict Transport Security) - only in production
+    if os.getenv("ENVIRONMENT") == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Content Security Policy compatible with Google Fonts
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none';"
+    )
+    response.headers["Content-Security-Policy"] = csp
+
+    return response
+
 add_auth_dependency(app)
+
+# Configure CORS with environment variable
+cors_origins = os.getenv("CORS_ORIGINS", "")
+if cors_origins.strip() == "*":
+    allow_origins = ["*"]
+else:
+    allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
-    allow_methods=["*"],
+    allow_origins=allow_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+# ============================================================================
+# GLOBAL EXCEPTION HANDLERS
+# ============================================================================
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle Pydantic validation errors with consistent JSON response."""
+    logger.error(f"Validation error: {exc.errors()}", extra={"request_id": getattr(request.state, 'request_id', 'unknown')})
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Validation Error",
+            "detail": "Invalid request data",
+            "errors": exc.errors()
+        }
+    )
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    """Handle database errors with consistent JSON response."""
+    logger.error(f"Database error: {str(exc)}", extra={"request_id": getattr(request.state, 'request_id', 'unknown')})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Database Error",
+            "detail": "An internal database error occurred"
+        }
+    )
+
+@app.exception_handler(stripe.error.StripeError)
+async def stripe_exception_handler(request: Request, exc: stripe.error.StripeError):
+    """Handle Stripe errors with consistent JSON response."""
+    logger.error(f"Stripe error: {str(exc)}", extra={"request_id": getattr(request.state, 'request_id', 'unknown')})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Payment Processing Error",
+            "detail": "An error occurred while processing payment"
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions with consistent JSON response."""
+    logger.warning(f"HTTP exception: {exc.detail}", extra={"request_id": getattr(request.state, 'request_id', 'unknown')})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.detail,
+            "detail": exc.detail
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Handle unexpected errors with consistent JSON response."""
+    logger.error(f"Unexpected error: {str(exc)}", extra={"request_id": getattr(request.state, 'request_id', 'unknown')})
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal Server Error",
+            "detail": "An unexpected error occurred"
+        }
+    )
+
+# ============================================================================
+# STATIC FILE SERVING (commented out for production)
+# ============================================================================
 
 # app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
 
@@ -392,7 +542,12 @@ class ScreeningResponse(BaseModel):
     id: int
     risk_score: float
     risk_level: str
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class MaintenanceRequest(BaseModel):
@@ -406,21 +561,36 @@ class MaintenanceResponse(BaseModel):
     vendor: str
     scheduled_for: str
     status: str
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class RentCollectionRequest(BaseModel):
     tenant_id: str
     amount: float = Field(..., gt=0)
-    due_date: str
-    auto_pay: bool = False
+    due_date: date
+
+    @validator('due_date', pre=True)
+    def parse_due_date(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v).date()
+        return v
 
 
 class RentCollectionResponse(BaseModel):
     id: int
     status: str
-    created_at: str
-    paid_at: Optional[str]
+    created_at: datetime
+    paid_at: Optional[datetime]
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 class LeaseRenewalRequest(BaseModel):
@@ -433,35 +603,62 @@ class LeaseRenewalResponse(BaseModel):
     id: int
     suggested_rent: float
     confidence: float
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class NotificationRequest(BaseModel):
     tenant_id: str
     channel: str = Field(..., pattern="^(email|sms|portal)$")
     message: str
-    scheduled_for: str
+    scheduled_for: datetime
+
+    @validator('scheduled_for', pre=True)
+    def parse_scheduled_for(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v)
+        return v
 
 
 class NotificationResponse(BaseModel):
     id: int
     status: str
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class LeaseRequest(BaseModel):
     tenant_id: str
     property_id: str
-    start_date: str
-    end_date: str
+    start_date: date
+    end_date: date
     rent_amount: float
     deposit: float
+
+    @validator('start_date', 'end_date', pre=True)
+    def parse_dates(cls, v):
+        if isinstance(v, str):
+            return datetime.fromisoformat(v).date()
+        return v
 
 
 class LeaseResponse(BaseModel):
     id: int
     status: str
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class PulseResponse(BaseModel):
@@ -488,7 +685,12 @@ class PropertyResponse(BaseModel):
     zip_code: str
     property_type: str
     units: int
-    created_at: str
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 
 class CheckoutSessionRequest(BaseModel):
@@ -517,8 +719,13 @@ class MoveInChecklistResponse(BaseModel):
     items: List[str]
     completed_items: List[int]
     status: str
-    created_at: str
-    completed_at: Optional[str]
+    created_at: datetime
+    completed_at: Optional[datetime]
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 
 @app.get("/api/health")

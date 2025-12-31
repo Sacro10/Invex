@@ -31,6 +31,7 @@ from models import (
     Organization,
     User,
     Subscription as SubscriptionModel,
+    BillingUpdateRetry as BillingUpdateRetryModel,
     Plan,
     MoveInChecklist as MoveInChecklistModel,
 )
@@ -148,6 +149,118 @@ app.add_middleware(
 def on_startup() -> None:
     # Initialize database tables via Alembic migrations
     init_db()
+
+
+# ============================================================================
+# BILLING UTILITIES
+# ============================================================================
+
+def calculate_org_total_units(db: Session, org_id: int) -> int:
+    """Calculate total units for an organization by summing all property units."""
+    from sqlalchemy import func
+    result = db.query(func.sum(PropertyModel.units)).filter(PropertyModel.org_id == org_id).scalar()
+    return result or 0
+
+
+def update_stripe_subscription_quantity(db: Session, org_id: int, new_quantity: int) -> bool:
+    """Update Stripe subscription quantity for an organization.
+
+    Returns True if successful, False if failed (will be queued for retry).
+    """
+    try:
+        # Get active subscription
+        sub = db.query(SubscriptionModel).filter(
+            SubscriptionModel.org_id == org_id,
+            SubscriptionModel.status == "active"
+        ).first()
+
+        if not sub:
+            # No active subscription, nothing to update
+            return True
+
+        if sub.unit_quantity == new_quantity:
+            # No change needed
+            return True
+
+        # Update Stripe subscription
+        stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            items=[{
+                'id': sub.stripe_subscription_id + '_item',  # This might need adjustment based on your Stripe setup
+                'quantity': new_quantity
+            }]
+        )
+
+        # Update local record
+        sub.unit_quantity = new_quantity
+        db.commit()
+
+        return True
+
+    except Exception as e:
+        # Queue for retry
+        retry = BillingUpdateRetryModel(
+            org_id=org_id,
+            stripe_subscription_id=sub.stripe_subscription_id if sub else "",
+            new_quantity=new_quantity,
+            error_message=str(e),
+            retry_count=0,
+            last_attempt=datetime.now(timezone.utc),
+            next_retry_at=datetime.now(timezone.utc) + timedelta(minutes=5)  # Retry in 5 minutes
+        )
+        db.add(retry)
+        db.commit()
+        return False
+
+
+def process_billing_update_retries(db: Session):
+    """Process queued billing update retries."""
+    from datetime import timedelta
+
+    # Get retries ready for processing
+    retries = db.query(BillingUpdateRetryModel).filter(
+        BillingUpdateRetryModel.next_retry_at <= datetime.now(timezone.utc),
+        BillingUpdateRetryModel.retry_count < 5  # Max 5 retries
+    ).all()
+
+    for retry in retries:
+        try:
+            # Attempt to update Stripe
+            stripe.Subscription.modify(
+                retry.stripe_subscription_id,
+                items=[{
+                    'id': retry.stripe_subscription_id + '_item',
+                    'quantity': retry.new_quantity
+                }]
+            )
+
+            # Update local subscription
+            sub = db.query(SubscriptionModel).filter(
+                SubscriptionModel.stripe_subscription_id == retry.stripe_subscription_id
+            ).first()
+            if sub:
+                sub.unit_quantity = retry.new_quantity
+                db.delete(retry)  # Remove successful retry
+            else:
+                # Subscription not found, remove retry
+                db.delete(retry)
+
+        except Exception as e:
+            # Increment retry count and schedule next attempt
+            retry.retry_count += 1
+            retry.error_message = str(e)
+            retry.last_attempt = datetime.now(timezone.utc)
+
+            if retry.retry_count < 5:
+                # Exponential backoff: 5, 15, 45, 135 minutes
+                delay_minutes = 5 * (3 ** (retry.retry_count - 1))
+                retry.next_retry_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
+            else:
+                # Max retries reached, log and remove
+                print(f"Max retries reached for billing update: {retry.error_message}")
+                db.delete(retry)
+
+    db.commit()
 
 
 # ============================================================================
@@ -425,6 +538,15 @@ def health(db: Session = Depends(get_db)) -> dict:
         "database": db_status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.post("/api/admin/process-billing-retries")
+def process_billing_retries(
+    db: Session = Depends(get_db)
+):
+    """Process queued billing update retries. Call this periodically (e.g., via cron)."""
+    process_billing_update_retries(db)
+    return {"message": "Billing retry processing completed"}
 
 
 @app.get("/api/export/tenant-screenings/csv")
@@ -994,14 +1116,18 @@ def add_property(
     db.commit()
     db.refresh(prop)
 
+    # Update billing with new total units
+    total_units = calculate_org_total_units(db, org_id)
+    update_stripe_subscription_quantity(db, org_id, total_units)
+
     return PropertyResponse(
         id=prop.id,
         address=payload.address,
         city=payload.city,
         state=payload.state,
         zip_code=payload.zip_code,
-        property_type=payload.property_type,
-        units=payload.units,
+        property_type=prop.property_type,
+        units=prop.units,
         created_at=created_at.isoformat(),
     )
 
@@ -1038,6 +1164,57 @@ def get_properties(
         }
         for p in properties
     ]
+
+
+@app.put("/api/properties/{property_id}", response_model=PropertyResponse)
+def update_property(
+    property_id: int,
+    payload: PropertyRequest,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("property_management")),
+) -> PropertyResponse:
+    """Update a property and recalculate billing if units changed."""
+    user, org_id = user_data
+
+    # Get existing property
+    prop = db.query(PropertyModel).filter(
+        PropertyModel.id == property_id,
+        PropertyModel.org_id == org_id
+    ).first()
+
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    old_units = prop.units
+    new_units = payload.units
+
+    # Update property
+    prop.address = payload.address
+    prop.city = payload.city
+    prop.state = payload.state
+    prop.zip_code = payload.zip_code
+    prop.property_type = payload.property_type
+    prop.units = new_units
+
+    db.commit()
+    db.refresh(prop)
+
+    # If units changed, update billing
+    if old_units != new_units:
+        total_units = calculate_org_total_units(db, org_id)
+        update_stripe_subscription_quantity(db, org_id, total_units)
+
+    return PropertyResponse(
+        id=prop.id,
+        address=prop.address,
+        city=prop.city,
+        state=prop.state,
+        zip_code=prop.zip_code,
+        property_type=prop.property_type,
+        units=prop.units,
+        created_at=prop.created_at.isoformat(),
+    )
 
 
 @app.get("/api/export/properties/csv")

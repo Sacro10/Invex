@@ -205,3 +205,21 @@ class Subscription(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="subscriptions")
+
+
+class BillingUpdateRetry(Base):
+    """Queue for failed Stripe billing updates to retry later."""
+    __tablename__ = "billing_update_retries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    stripe_subscription_id = Column(String, nullable=False)
+    new_quantity = Column(Integer, nullable=False)
+    error_message = Column(String, nullable=True)
+    retry_count = Column(Integer, default=0)
+    last_attempt = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    next_retry_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization")

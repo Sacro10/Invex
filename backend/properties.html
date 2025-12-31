@@ -117,12 +117,156 @@
         </form>
 
         <div class="feature-actions">
-          <button class="secondary view-all" data-endpoint="/api/properties" data-table="properties-table" data-columns='[{"key":"id","label":"ID"},{"key":"address","label":"Address"},{"key":"city","label":"City"},{"key":"state","label":"State"},{"key":"zip_code","label":"ZIP"},{"key":"property_type","label":"Type"},{"key":"units","label":"Units"}]'>View All</button>
+          <button class="secondary view-all" data-endpoint="/api/properties" data-table="properties-table" data-columns='[{"key":"id","label":"ID"},{"key":"address","label":"Address"},{"key":"city","label":"City"},{"key":"state","label":"State"},{"key":"zip_code","label":"ZIP"},{"key":"property_type","label":"Type"},{"key":"units","label":"Units"},{"key":"actions","label":"Actions"}]'>View All</button>
           <button class="secondary export-csv" data-endpoint="/api/export/properties/csv">Export CSV</button>
         </div>
         <div id="properties-table" class="data-table"></div>
       </main>
     </div>
     <script src="feature-pages.js"></script>
+    <script>
+      // Custom properties page functionality
+      let editingPropertyId = null;
+
+      // Override the displayTable function for properties to add edit buttons
+      const originalDisplayTable = window.displayTable;
+      window.displayTable = function(data, containerId, columns) {
+        if (containerId === 'properties-table') {
+          const container = document.getElementById(containerId);
+          if (!container) return;
+
+          if (!data || data.length === 0) {
+            container.innerHTML = '<p>No data available.</p>';
+            return;
+          }
+
+          let table = '<table><thead><tr>';
+          columns.forEach(col => {
+            table += `<th>${col.label}</th>`;
+          });
+          table += '</tr></thead><tbody>';
+
+          data.forEach(row => {
+            table += '<tr>';
+            columns.forEach(col => {
+              let value = row[col.key];
+              // Format dates
+              if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+                value = formatDate(value);
+              }
+              if (col.key === 'actions') {
+                value = `<button class="edit-btn" data-id="${row.id}">Edit</button>`;
+              }
+              table += `<td>${value}</td>`;
+            });
+            table += '</tr>';
+          });
+
+          table += '</tbody></table>';
+          container.innerHTML = table;
+
+          // Add event listeners for edit buttons
+          document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+              const propertyId = e.target.dataset.id;
+              editProperty(propertyId);
+            });
+          });
+        } else {
+          originalDisplayTable.call(this, data, containerId, columns);
+        }
+      };
+
+      // Function to populate form for editing
+      async function editProperty(propertyId) {
+        try {
+          const response = await apiFetch(`${API_BASE}/api/properties`);
+          const properties = await response.json();
+
+          const property = properties.find(p => p.id == propertyId);
+          if (!property) {
+            alert('Property not found');
+            return;
+          }
+
+          // Populate form
+          const form = document.querySelector('.feature-form');
+          form.querySelector('[name="address"]').value = property.address;
+          form.querySelector('[name="city"]').value = property.city;
+          form.querySelector('[name="state"]').value = property.state;
+          form.querySelector('[name="zip_code"]').value = property.zip_code;
+          form.querySelector('[name="property_type"]').value = property.property_type;
+          form.querySelector('[name="units"]').value = property.units;
+
+          // Change button text and set editing mode
+          const submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.textContent = 'Update Property';
+          editingPropertyId = propertyId;
+
+          // Scroll to form
+          form.scrollIntoView({ behavior: 'smooth' });
+        } catch (error) {
+          alert('Error loading property: ' + error.message);
+        }
+      }
+
+      // Override form submission to handle both create and update
+      document.addEventListener('DOMContentLoaded', () => {
+        const form = document.querySelector('.feature-form');
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const result = form.querySelector('.result');
+          if (result) {
+            result.textContent = 'Running...';
+            result.classList.remove('error');
+          }
+
+          const payload = {};
+          form.querySelectorAll('input, select, textarea').forEach((el) => {
+            if (!el.name) return;
+            payload[el.name] = parseValue(el);
+          });
+
+          try {
+            const method = editingPropertyId ? 'PUT' : 'POST';
+            const endpoint = editingPropertyId
+              ? `${API_BASE}/api/properties/${editingPropertyId}`
+              : `${API_BASE}${form.dataset.endpoint}`;
+
+            const response = await apiFetch(endpoint, {
+              method: method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error(data.detail || 'Request failed');
+            }
+            if (result) {
+              displayResultAsTable(data, result);
+            }
+
+            // Reset form and refresh table
+            if (editingPropertyId) {
+              form.reset();
+              const submitBtn = form.querySelector('button[type="submit"]');
+              submitBtn.textContent = 'Add Property';
+              editingPropertyId = null;
+            }
+
+            // Refresh the table
+            const viewBtn = document.querySelector('.view-all');
+            if (viewBtn) {
+              viewBtn.click();
+            }
+          } catch (error) {
+            if (result) {
+              result.textContent = error.message;
+              result.classList.add('error');
+            }
+          }
+        });
+      });
+    </script>
   </body>
 </html>

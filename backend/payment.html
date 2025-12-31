@@ -27,11 +27,11 @@
           <p class="lead">Select your plan and enter payment details.</p>
         </section>
 
-        <form class="feature-form" data-endpoint="#">
+        <form class="feature-form" id="checkout-form">
           <div class="form-grid">
             <label class="form-field">
               Plan
-              <select name="plan" id="plan-select">
+              <select name="plan" id="plan-select" required>
                 <option value="core">Core - $2 / unit</option>
                 <option value="growth">Growth - $4 / unit</option>
                 <option value="premium">Premium - $5 / unit</option>
@@ -39,29 +39,10 @@
             </label>
             <label class="form-field">
               Units
-              <input type="number" name="units" data-type="number" placeholder="100" min="1" required />
-            </label>
-            <label class="form-field">
-              Cardholder name
-              <input type="text" name="card_name" placeholder="Alex Carter" required />
-            </label>
-            <label class="form-field">
-              Card number
-              <input type="text" name="card_number" placeholder="4242 4242 4242 4242" required />
-            </label>
-            <label class="form-field">
-              Expiry (MM/YY)
-              <input type="text" name="expiry" placeholder="12/28" required />
-            </label>
-            <label class="form-field">
-              CVC
-              <input type="text" name="cvc" placeholder="123" required />
+              <input type="number" name="units" id="units-input" placeholder="100" min="1" required />
             </label>
           </div>
           <button class="primary" type="submit">Start subscription</button>
-          <p class="lead" style="color: var(--slate); margin-top: 8px;">
-            Note: This is a placeholder checkout page. Connect to a processor (e.g., Stripe) before going live.
-          </p>
         </form>
       </main>
     </div>
@@ -72,6 +53,35 @@
       if (plan && select) {
         select.value = plan;
       }
+
+      const form = document.getElementById('checkout-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const plan = select.value;
+        const units = parseInt(document.getElementById('units-input').value);
+        
+        try {
+          const response = await fetch('/api/billing/create-checkout-session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ plan, units })
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            window.location.href = data.url;
+          } else {
+            alert('Failed to create checkout session');
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          alert('An error occurred');
+        }
+      });
     </script>
   </body>
 </html>

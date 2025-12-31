@@ -3,28 +3,6 @@ from __future__ import annotations
 # Authenticated user info endpoint
 from fastapi import HTTPException, status
 
-class MeResponse(BaseModel):
-    user_id: int
-    org_id: int
-    email: str
-    role: str
-    organization_name: str
-
-@app.get("/api/auth/me", response_model=MeResponse)
-def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
-    user, org_id = user_data
-    org = db.query(Organization).filter(Organization.id == org_id).first()
-    if not org:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
-    return MeResponse(
-        user_id=user.id,
-        org_id=org.id,
-        email=user.email,
-        role=user.role,
-
-        organization_name=org.name
-        )
-
 import csv
 import io
 import math
@@ -33,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -51,6 +29,8 @@ from models import (
     Lease as LeaseModel,
     Organization,
     User,
+    Subscription as SubscriptionModel,
+    Plan,
 )
 
 from auth import (
@@ -60,7 +40,14 @@ from auth import (
     get_current_user,
 )
 
-# Protect all /api/* routes except /api/health and /api/auth/*
+import stripe
+
+class MeResponse(BaseModel):
+    user_id: int
+    org_id: int
+    email: str
+    role: str
+    organization_name: str
 from fastapi.routing import APIRoute
 def is_protected_route(route):
     path = getattr(route, 'path', None)
@@ -83,6 +70,16 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+# Initialize Stripe
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+class MeResponse(BaseModel):
+    user_id: int
+    org_id: int
+    email: str
+    role: str
+    organization_name: str
 
 add_auth_dependency(app)
 
@@ -249,6 +246,21 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+@app.get("/api/auth/me", response_model=MeResponse)
+def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
+    user, org_id = user_data
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    return MeResponse(
+        user_id=user.id,
+        org_id=org.id,
+        email=user.email,
+        role=user.role,
+        organization_name=org.name
+    )
+
+
 # ============================================================================
 # DOMAIN SCHEMAS
 # ============================================================================
@@ -361,6 +373,19 @@ class PropertyResponse(BaseModel):
     property_type: str
     units: int
     created_at: str
+
+
+class CheckoutSessionRequest(BaseModel):
+    plan: str  # core, growth, premium
+    units: int = Field(gt=0)
+
+
+class CheckoutSessionResponse(BaseModel):
+    url: str
+
+
+class PortalSessionResponse(BaseModel):
+    url: str
 
 
 @app.get("/api/health")
@@ -1193,6 +1218,138 @@ def pulse(
             "screening": screening_text(),
         },
     )
+
+
+@app.post("/api/billing/create-checkout-session", response_model=CheckoutSessionResponse)
+def create_checkout_session(
+    payload: CheckoutSessionRequest,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CheckoutSessionResponse:
+    """Create a Stripe checkout session for subscription."""
+    user, org_id = user_data
+    
+    # Validate plan
+    if payload.plan not in [p.value for p in Plan]:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    # Get price ID from env
+    price_map = {
+        "core": os.getenv("STRIPE_PRICE_CORE"),
+        "growth": os.getenv("STRIPE_PRICE_GROWTH"),
+        "premium": os.getenv("STRIPE_PRICE_PREMIUM"),
+    }
+    price_id = price_map.get(payload.plan)
+    if not price_id:
+        raise HTTPException(status_code=500, detail="Price not configured")
+    
+    # Get or create Stripe customer
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    customer_id = None
+    existing_sub = db.query(SubscriptionModel).filter(SubscriptionModel.org_id == org_id).first()
+    if existing_sub:
+        customer_id = existing_sub.stripe_customer_id
+    else:
+        # Create new customer
+        customer = stripe.Customer.create(
+            email=user.email,
+            name=org.name,
+            metadata={"org_id": str(org_id)}
+        )
+        customer_id = customer.id
+    
+    # Create checkout session
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        payment_method_types=["card"],
+        line_items=[{
+            "price": price_id,
+            "quantity": payload.units,
+        }],
+        mode="subscription",
+        success_url=os.getenv("FRONTEND_URL", "http://localhost:8000") + "/billing-success.html",
+        cancel_url=os.getenv("FRONTEND_URL", "http://localhost:8000") + "/payment.html",
+        metadata={"org_id": str(org_id), "plan": payload.plan, "units": str(payload.units)},
+    )
+    
+    return CheckoutSessionResponse(url=session.url)
+
+
+@app.post("/api/billing/create-portal-session", response_model=PortalSessionResponse)
+def create_portal_session(
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PortalSessionResponse:
+    """Create a Stripe billing portal session."""
+    user, org_id = user_data
+    
+    # Get subscription
+    sub = db.query(SubscriptionModel).filter(SubscriptionModel.org_id == org_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="No subscription found")
+    
+    # Create portal session
+    session = stripe.billing_portal.Session.create(
+        customer=sub.stripe_customer_id,
+        return_url=os.getenv("FRONTEND_URL", "http://localhost:8000") + "/index.html",
+    )
+    
+    return PortalSessionResponse(url=session.url)
+
+
+@app.post("/api/billing/webhook")
+async def stripe_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Handle Stripe webhooks."""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    
+    # Handle the event
+    if event.type == "customer.subscription.created":
+        subscription = event.data.object
+        org_id = int(subscription.metadata.get("org_id"))
+        plan = subscription.metadata.get("plan")
+        units = int(subscription.metadata.get("units"))
+        
+        # Create or update subscription record
+        db_sub = SubscriptionModel(
+            org_id=org_id,
+            stripe_customer_id=subscription.customer,
+            stripe_subscription_id=subscription.id,
+            plan=plan,
+            unit_quantity=units,
+            status=subscription.status,
+            current_period_end=datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc),
+        )
+        db.add(db_sub)
+        db.commit()
+    
+    elif event.type in ["customer.subscription.updated", "customer.subscription.deleted"]:
+        subscription = event.data.object
+        db_sub = db.query(SubscriptionModel).filter(
+            SubscriptionModel.stripe_subscription_id == subscription.id
+        ).first()
+        if db_sub:
+            db_sub.status = subscription.status
+            db_sub.current_period_end = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc)
+            if hasattr(subscription, 'quantity'):
+                db_sub.unit_quantity = subscription.quantity
+            db.commit()
+    
+    return {"status": "ok"}
 
 
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")

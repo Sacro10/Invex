@@ -3,9 +3,16 @@ SQLAlchemy ORM models for multi-tenant property management system.
 """
 
 from datetime import datetime, timezone
+from enum import Enum
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+class Plan(str, Enum):
+    CORE = "core"
+    GROWTH = "growth"
+    PREMIUM = "premium"
 
 
 class Organization(Base):
@@ -25,6 +32,7 @@ class Organization(Base):
     renewals = relationship("LeaseRenewal", back_populates="organization", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="organization", cascade="all, delete-orphan")
     leases = relationship("Lease", back_populates="organization", cascade="all, delete-orphan")
+    subscriptions = relationship("Subscription", back_populates="organization", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -161,3 +169,20 @@ class Lease(Base):
     # Relationships
     organization = relationship("Organization", back_populates="leases")
 
+
+class Subscription(Base):
+    """Subscription billing information for organizations."""
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    stripe_customer_id = Column(String, nullable=False)
+    stripe_subscription_id = Column(String, nullable=False)
+    plan = Column(String, nullable=False)  # core, growth, premium
+    unit_quantity = Column(Integer, nullable=False)
+    status = Column(String, nullable=False)  # active, canceled, past_due, etc.
+    current_period_end = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="subscriptions")

@@ -1,5 +1,6 @@
 """Authentication utilities for JWT tokens, password hashing, and user dependencies."""
 
+import os
 from datetime import datetime, timedelta
 from typing import Tuple
 

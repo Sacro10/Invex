@@ -23,7 +23,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Password hashing context
 pwd_context = CryptContext(
-    schemes=["pbkdf2_sha256", "bcrypt"], 
+    schemes=["pbkdf2_sha256"], 
     deprecated="auto",
     pbkdf2_sha256__default_rounds=30000
 )

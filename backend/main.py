@@ -367,15 +367,31 @@ class PropertyResponse(BaseModel):
 def health(db: Session = Depends(get_db)) -> dict:
     """
     Health check endpoint. Returns basic application status and database connectivity.
+    """
+    db_status = "connected"
+    try:
+        db.execute("SELECT 1")
+    except Exception as e:
+        db_status = f"error: {str(e)}"
     
+    return {
+        "status": "ok",
+        "version": "1.0.0",
+        "database": db_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
+
+@app.get("/api/export/tenant-screenings/csv")
+def export_tenant_screenings(
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     user, org_id = user_data
     screenings = (
         db.query(TenantScreeningModel)
         .filter(TenantScreeningModel.org_id == org_id)
         .order_by(TenantScreeningModel.created_at.desc())
-        .limit(limit)
-        .offset(offset)
         .all()
     )
     if not screenings:
@@ -500,7 +516,7 @@ def get_maintenance_requests(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ):
-    """Get paginated list of maintenance requests for user's organization."""
+    '''Get paginated list of maintenance requests for user's organization.'''
     user, org_id = user_data
     requests = (
         db.query(MaintenanceRequestModel)

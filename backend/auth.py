@@ -24,12 +24,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 # Password hashing context
 pwd_context = CryptContext(
     schemes=["bcrypt"], 
-    deprecated="auto",
-    bcrypt__truncate=True  # Automatically truncate passwords
+    deprecated="auto"
 )
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
+    # Ensure password is safely within bcrypt's 72-byte limit
+    # Use a very conservative approach
+    if len(password) > 40:  # 40 chars should be safely under 72 bytes
+        password = password[:40]
+    
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

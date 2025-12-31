@@ -134,7 +134,6 @@ class Vendor(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="vendors")
-    maintenance_requests = relationship("MaintenanceRequest", backref="assigned_vendor")
 
 
 class VendorAssignmentCounter(Base):

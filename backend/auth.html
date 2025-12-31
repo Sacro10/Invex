@@ -18,8 +18,49 @@
   </style>
 </head>
 <body>
-  <header>
-    <a href="index.html" style="text-decoration:none"><h1>INDEX Property Management</h1></a>
+  <header class="topbar">
+    <a href="index.html" class="logo" style="text-decoration:none">
+      <svg class="logo-mark" viewBox="0 0 220 120" aria-hidden="true">
+        <defs>
+          <linearGradient id="leafGradient" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stop-color="#9fd4c7" />
+            <stop offset="100%" stop-color="#4fc1c7" />
+          </linearGradient>
+          <linearGradient id="petalGradient" x1="0" x2="1" y1="1" y2="0">
+            <stop offset="0%" stop-color="#67c6d3" />
+            <stop offset="100%" stop-color="#3ba9c7" />
+          </linearGradient>
+        </defs>
+        <rect x="104" y="10" width="10" height="70" rx="4" fill="#0f1c22" />
+        <path
+          d="M108 38c-12 4-22 14-24 26 10-2 20-10 24-21"
+          fill="none"
+          stroke="url(#leafGradient)"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+        <path
+          d="M110 46c12 6 22 16 24 28-10-2-20-10-24-21"
+          fill="none"
+          stroke="url(#leafGradient)"
+          stroke-width="3"
+          stroke-linecap="round"
+        />
+        <ellipse cx="110" cy="8" rx="10" ry="7" fill="url(#leafGradient)" />
+        <ellipse cx="88" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+        <ellipse cx="132" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+        <ellipse cx="84" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+        <ellipse cx="136" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+        <path
+          d="M110 84c-6 10-3 20 0 26 3-6 8-14 7-23"
+          fill="url(#petalGradient)"
+        />
+      </svg>
+      <div class="logo-text">
+        <span class="logo-name">INDEX</span>
+        <span class="logo-sub">Property Management</span>
+      </div>
+    </a>
   </header>
   <main>
     <div class="auth-container">

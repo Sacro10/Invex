@@ -21,18 +21,19 @@ SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Password hashing context - configure to avoid bcrypt bug detection
+# Password hashing context
 pwd_context = CryptContext(
     schemes=["bcrypt"], 
-    deprecated="auto",
-    bcrypt__ident="2b"  # Use 2b variant which doesn't have the bug detection issue
+    deprecated="auto"
 )
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt."""
-    # Truncate password to 72 bytes as required by bcrypt
-    truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(truncated_password)
+    # bcrypt has a 72-byte limit - truncate if necessary
+    if len(password.encode('utf-8')) > 72:
+        password = password.encode('utf-8')[:72].decode('utf-8', errors='replace')
+    
+    return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a bcrypt hash."""

@@ -1,5 +1,6 @@
 # Runtime artifacts
 backend/data.db
+*.db
 .DS_Store
 
 # Python

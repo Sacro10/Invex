@@ -425,6 +425,28 @@
         <p class="copyright">© 2026 Index Property Management. All rights reserved.</p>
       </footer>
     </div>
+    <script>
+      // Gate app actions behind login, but allow static marketing content
+      const protectedPages = [
+        'tenant-screening.html', 'maintenance.html', 'accounting.html', 'lease-renewal.html',
+        'leases.html', 'communication.html', 'properties.html'
+      ];
+      document.addEventListener('DOMContentLoaded', () => {
+        // If on index.html, only gate if user tries to access app features
+        document.querySelectorAll('nav a').forEach(link => {
+          const href = link.getAttribute('href');
+          if (protectedPages.includes(href)) {
+            link.addEventListener('click', (e) => {
+              const token = localStorage.getItem('access_token');
+              if (!token) {
+                e.preventDefault();
+                window.location.href = 'auth.html';
+              }
+            });
+          }
+        });
+      });
+    </script>
     <script src="script.js"></script>
   </body>
 </html>

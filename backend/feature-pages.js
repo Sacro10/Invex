@@ -1,4 +1,23 @@
+
 const API_BASE = window.API_BASE || "";
+
+// Helper: fetch with auth token for /api/* except /api/auth/* and /api/health
+async function apiFetch(url, options = {}) {
+  const isApi = url.startsWith("/api/") || url.startsWith(API_BASE + "/api/");
+  const isAuth = url.includes("/api/auth/") || url.endsWith("/api/health");
+  const token = localStorage.getItem("access_token");
+  if (isApi && !isAuth && token) {
+    options.headers = options.headers || {};
+    options.headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    localStorage.removeItem("access_token");
+    window.location.href = "auth.html";
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
 
 const forms = document.querySelectorAll("form[data-endpoint]");
 
@@ -68,7 +87,7 @@ forms.forEach((form) => {
     });
 
     try {
-      const response = await fetch(`${API_BASE}${form.dataset.endpoint}`, {
+      const response = await apiFetch(`${API_BASE}${form.dataset.endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -143,7 +162,7 @@ function displayTable(data, containerId, columns) {
 // Function to update maintenance request status
 async function updateStatus(requestId, status) {
   try {
-    const response = await fetch(`${API_BASE}/api/maintenance-requests/${requestId}`, {
+    const response = await apiFetch(`${API_BASE}/api/maintenance-requests/${requestId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -169,7 +188,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const columns = JSON.parse(e.target.dataset.columns);
 
       try {
-        const response = await fetch(`${API_BASE}${endpoint}`);
+        const response = await apiFetch(`${API_BASE}${endpoint}`);
         const data = await response.json();
         displayTable(data, tableId, columns);
       } catch (error) {

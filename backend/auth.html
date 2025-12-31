@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login / Register - INDEX Property Management</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .auth-container { max-width: 400px; margin: 4rem auto; background: var(--sandy, #f8f5f0); border-radius: 12px; box-shadow: 0 2px 16px #0002; padding: 2rem; }
+    .auth-tabs { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+    .auth-tabs button { flex: 1; padding: 0.5rem; font-family: inherit; font-size: 1.1rem; border: none; background: var(--mint, #9fd4c7); color: var(--ink, #0f1c22); border-radius: 6px 6px 0 0; cursor: pointer; }
+    .auth-tabs button.active { background: var(--ink, #0f1c22); color: #fff; }
+    .auth-form { display: flex; flex-direction: column; gap: 1rem; }
+    .auth-form input { padding: 0.5rem; border-radius: 4px; border: 1px solid #bbb; font-size: 1rem; }
+    .auth-form button { background: var(--mint, #9fd4c7); color: var(--ink, #0f1c22); border: none; border-radius: 4px; padding: 0.7rem; font-size: 1.1rem; cursor: pointer; }
+    .auth-form button:disabled { opacity: 0.6; }
+    .auth-error { color: #b00; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html" style="text-decoration:none"><h1>INDEX Property Management</h1></a>
+  </header>
+  <main>
+    <div class="auth-container">
+      <div class="auth-tabs">
+        <button id="loginTab" class="active">Login</button>
+        <button id="registerTab">Register</button>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <input type="email" id="loginEmail" placeholder="Email" required autocomplete="username">
+        <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password">
+        <button type="submit">Login</button>
+        <div class="auth-error" id="loginError"></div>
+      </form>
+      <form id="registerForm" class="auth-form" style="display:none">
+        <input type="text" id="registerOrg" placeholder="Organization Name" required>
+        <input type="email" id="registerEmail" placeholder="Email" required autocomplete="username">
+        <input type="password" id="registerPassword" placeholder="Password" required autocomplete="new-password">
+        <button type="submit">Register</button>
+        <div class="auth-error" id="registerError"></div>
+      </form>
+    </div>
+  </main>
+  <script>
+    const API_BASE = window.API_BASE || "http://localhost:8000";
+    const loginTab = document.getElementById('loginTab');
+    const registerTab = document.getElementById('registerTab');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    loginTab.onclick = () => { loginTab.classList.add('active'); registerTab.classList.remove('active'); loginForm.style.display = ''; registerForm.style.display = 'none'; };
+    registerTab.onclick = () => { registerTab.classList.add('active'); loginTab.classList.remove('active'); registerForm.style.display = ''; loginForm.style.display = 'none'; };
+    loginForm.onsubmit = async e => {
+      e.preventDefault();
+      document.getElementById('loginError').textContent = '';
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Login failed');
+        localStorage.setItem('access_token', data.access_token);
+        window.location.href = 'index.html';
+      } catch (err) {
+        document.getElementById('loginError').textContent = err.message;
+      }
+    };
+    registerForm.onsubmit = async e => {
+      e.preventDefault();
+      document.getElementById('registerError').textContent = '';
+      const organization_name = document.getElementById('registerOrg').value;
+      const email = document.getElementById('registerEmail').value;
+      const password = document.getElementById('registerPassword').value;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ organization_name, email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Registration failed');
+        localStorage.setItem('access_token', data.access_token);
+        window.location.href = 'index.html';
+      } catch (err) {
+        document.getElementById('registerError').textContent = err.message;
+      }
+    };
+  </script>
+</body>
+</html>

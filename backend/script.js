@@ -26,9 +26,18 @@ reveals.forEach((el) => observer.observe(el));
 
   const API_BASE = window.API_BASE || "";
 
-  fetch(`${API_BASE}/api/pulse`)
-    .then((res) => res.json())
-    .then((data) => {
+  // Auth-aware fetch for pulse
+  async function pulseFetch() {
+    const token = localStorage.getItem("access_token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    try {
+      const res = await fetch(`${API_BASE}/api/pulse`, { headers });
+      if (res.status === 401) {
+        localStorage.removeItem("access_token");
+        window.location.href = "auth.html";
+        return;
+      }
+      const data = await res.json();
       if (typeof data.occupancy === "number") {
         occEl.textContent = `${data.occupancy.toFixed(1)}%`;
       }
@@ -47,10 +56,9 @@ reveals.forEach((el) => observer.observe(el));
         renewalEl && (renewalEl.textContent = data.timeline.renewal);
         screeningEl && (screeningEl.textContent = data.timeline.screening);
       }
-    })
-    .catch(() => {
-      // keep defaults on error
-    });
+    } catch {}
+  }
+  pulseFetch();
 })();
 
 // Nav dropdown toggle

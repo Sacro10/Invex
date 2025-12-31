@@ -2,28 +2,34 @@
 
 from datetime import datetime, timedelta
 from typing import Tuple
-from hashlib import sha256
+
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from starlette.requests import Request
 from sqlalchemy.orm import Session
 from models import User
 from database import get_db
+from passlib.context import CryptContext
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
 
 # Configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # Should come from env
+SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    """Hash a password using SHA256. In production, use bcrypt or argon2."""
-    return sha256(password.encode()).hexdigest()
-
+    """Hash a password using bcrypt."""
+    return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a hashed password."""
-    return sha256(plain_password.encode()).hexdigest() == hashed_password
+    """Verify a plain password against a bcrypt hash."""
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:

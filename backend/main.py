@@ -1,4 +1,29 @@
+
 from __future__ import annotations
+# Authenticated user info endpoint
+from fastapi import HTTPException, status
+
+class MeResponse(BaseModel):
+    user_id: int
+    org_id: int
+    email: str
+    role: str
+    organization_name: str
+
+@app.get("/api/auth/me", response_model=MeResponse)
+def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
+    user, org_id = user_data
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    return MeResponse(
+        user_id=user.id,
+        org_id=org.id,
+        email=user.email,
+        role=user.role,
+
+        organization_name=org.name
+        )
 
 import csv
 import io
@@ -27,6 +52,7 @@ from models import (
     Organization,
     User,
 )
+
 from auth import (
     hash_password,
     verify_password,
@@ -34,7 +60,20 @@ from auth import (
     get_current_user,
 )
 
+# Protect all /api/* routes except /api/health and /api/auth/*
+from fastapi.routing import APIRoute
+def is_protected_route(route):
+    path = getattr(route, 'path', None)
+    return path and path.startswith("/api/") and not (path.startswith("/api/auth") or path == "/api/health")
+
+def add_auth_dependency(app):
+    for route in app.routes:
+        if isinstance(route, APIRoute) and is_protected_route(route):
+            if get_current_user not in [d.dependency for d in route.dependant.dependencies]:
+                route.dependant.dependencies.append(Depends(get_current_user))
+
 BASE_DIR = Path(__file__).resolve().parent
+
 
 app = FastAPI(
     title="INDEX Property Management API",
@@ -44,6 +83,8 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+add_auth_dependency(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -327,68 +368,14 @@ def health(db: Session = Depends(get_db)) -> dict:
     """
     Health check endpoint. Returns basic application status and database connectivity.
     
-    Returns:
-        dict: Status information including app status and database connectivity
-    """
-    db_status = "connected"
-    try:
-        db.execute("SELECT 1")
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-    
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "database": db_status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
 
-
-@app.get("/api/tenant-screenings")
-def get_tenant_screenings(
-    user_data=Depends(get_current_user),
-    db: Session = Depends(get_db),
-    limit: int = Query(50, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-):
-    """Get paginated list of tenant screenings for user's organization."""
     user, org_id = user_data
-    
     screenings = (
         db.query(TenantScreeningModel)
         .filter(TenantScreeningModel.org_id == org_id)
         .order_by(TenantScreeningModel.created_at.desc())
         .limit(limit)
         .offset(offset)
-        .all()
-    )
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "income": s.income,
-            "credit_score": s.credit_score,
-            "evictions": s.evictions,
-            "risk_score": s.risk_score,
-            "risk_level": s.risk_level,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-        }
-        for s in screenings
-    ]
-
-
-@app.get("/api/export/tenant-screenings/csv")
-def export_tenant_screenings(
-    user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Export all tenant screenings as CSV for user's organization."""
-    user, org_id = user_data
-    
-    screenings = (
-        db.query(TenantScreeningModel)
-        .filter(TenantScreeningModel.org_id == org_id)
-        .order_by(TenantScreeningModel.created_at.desc())
         .all()
     )
     if not screenings:

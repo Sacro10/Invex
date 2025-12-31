@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>INDEX - Vendor Management</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spectral:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a href="index.html" class="logo">
+          <svg class="logo-mark" viewBox="0 0 220 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="leafGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#9fd4c7" />
+                <stop offset="100%" stop-color="#4fc1c7" />
+              </linearGradient>
+              <linearGradient id="petalGradient" x1="0" x2="1" y1="1" y2="0">
+                <stop offset="0%" stop-color="#67c6d3" />
+                <stop offset="100%" stop-color="#3ba9c7" />
+              </linearGradient>
+            </defs>
+            <rect x="104" y="10" width="10" height="70" rx="4" fill="#0f1c22" />
+            <path
+              d="M108 38c-12 4-22 14-24 26 10-2 20-10 24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M110 46c12 6 22 16 24 28-10-2-20-10-24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <ellipse cx="110" cy="8" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="88" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="132" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="84" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="136" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <path
+              d="M110 84c-6 10-3 20 0 26 3-6 8-14 7-23"
+              fill="url(#petalGradient)"
+            />
+          </svg>
+          <div class="logo-text">
+            <span class="logo-name">INDEX</span>
+            <span class="logo-sub">Property Management</span>
+          </div>
+        </a>
+        <nav class="nav">
+          <a href="index.html">Home</a>
+          <a href="tenant-screening.html">Screening</a>
+          <a href="maintenance.html">Maintenance</a>
+          <a href="accounting.html">Accounting</a>
+          <a href="lease-renewal.html">Renewals</a>
+          <a href="communication.html">Comms</a>
+          <a href="properties.html">Properties</a>
+          <a href="leases.html">Leases</a>
+          <a href="vendors.html" class="active">Vendors</a>
+          <a class="nav-cta" href="index.html#cta">Get a demo</a>
+        </nav>
+      </header>
+
+      <main class="feature-page">
+        <a class="back-link" href="index.html">Back to overview</a>
+        <section class="feature-hero">
+          <p class="eyebrow">Vendor management</p>
+          <h1>Manage your service provider network.</h1>
+          <p class="lead">
+            Add and manage vendors for maintenance routing. Define specialties and service areas.
+          </p>
+        </section>
+
+        <form class="feature-form" data-endpoint="/api/vendors">
+          <div class="form-grid">
+            <label class="form-field">
+              Vendor Name
+              <input type="text" name="name" placeholder="AquaFlow Plumbing" required />
+            </label>
+            <label class="form-field">
+              Email
+              <input type="email" name="email" placeholder="contact@aquaflow.com" />
+            </label>
+            <label class="form-field">
+              Phone
+              <input type="tel" name="phone" placeholder="(555) 123-4567" />
+            </label>
+            <label class="form-field">
+              Specialties
+              <input type="text" name="specialties" placeholder="plumbing,hvac,electrical" data-type="array" required />
+            </label>
+            <label class="form-field">
+              Service ZIP Codes
+              <input type="text" name="service_zip_codes" placeholder="12345,67890" data-type="array" />
+            </label>
+          </div>
+          <button class="primary" type="submit">Add Vendor</button>
+          <div class="result"></div>
+        </form>
+
+        <div class="feature-actions">
+          <button class="secondary view-all" data-endpoint="/api/vendors" data-table="vendors-table" data-columns='[{"key":"id","label":"ID"},{"key":"name","label":"Name"},{"key":"email","label":"Email"},{"key":"phone","label":"Phone"},{"key":"specialties","label":"Specialties"},{"key":"service_zip_codes","label":"Service Areas"},{"key":"is_active","label":"Active"},{"key":"actions","label":"Actions"}]'>View All Vendors</button>
+        </div>
+        <div id="vendors-table" class="data-table"></div>
+      </main>
+    </div>
+    <script src="feature-pages.js"></script>
+    <script>
+      // Custom vendors page functionality
+      let editingVendorId = null;
+
+      // Override the displayTable function for vendors to add edit/delete buttons
+      const originalDisplayTable = window.displayTable;
+      window.displayTable = function(data, containerId, columns) {
+        if (containerId === 'vendors-table') {
+          const container = document.getElementById(containerId);
+          if (!container) return;
+
+          if (!data || data.length === 0) {
+            container.innerHTML = '<p>No vendors found.</p>';
+            return;
+          }
+
+          let table = '<table><thead><tr>';
+          columns.forEach(col => {
+            table += `<th>${col.label}</th>`;
+          });
+          table += '</tr></thead><tbody>';
+
+          data.forEach(row => {
+            table += '<tr>';
+            columns.forEach(col => {
+              if (col.key === 'specialties') {
+                const specialties = Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] || '';
+                table += `<td>${specialties}</td>`;
+              } else if (col.key === 'service_zip_codes') {
+                const zips = Array.isArray(row[col.key]) ? row[col.key].join(', ') : row[col.key] || '';
+                table += `<td>${zips}</td>`;
+              } else if (col.key === 'is_active') {
+                const status = row[col.key] ? 'Active' : 'Inactive';
+                const statusClass = row[col.key] ? 'status-active' : 'status-inactive';
+                table += `<td><span class="${statusClass}">${status}</span></td>`;
+              } else if (col.key === 'actions') {
+                table += `<td>
+                  <button class="edit-btn" onclick="editVendor(${row.id})">Edit</button>
+                  <button class="delete-btn" onclick="deleteVendor(${row.id})">Delete</button>
+                </td>`;
+              } else {
+                table += `<td>${row[col.key] || ''}</td>`;
+              }
+            });
+            table += '</tr>';
+          });
+          table += '</tbody></table>';
+          container.innerHTML = table;
+          return;
+        }
+
+        // Call original function for other tables
+        originalDisplayTable(data, containerId, columns);
+      };
+
+      // Edit vendor function
+      async function editVendor(vendorId) {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          window.location.href = 'auth.html';
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/vendors`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const vendors = await response.json();
+
+          const vendor = vendors.find(v => v.id === vendorId);
+          if (!vendor) {
+            alert('Vendor not found');
+            return;
+          }
+
+          // Populate form
+          document.querySelector('[name="name"]').value = vendor.name;
+          document.querySelector('[name="email"]').value = vendor.email || '';
+          document.querySelector('[name="phone"]').value = vendor.phone || '';
+          document.querySelector('[name="specialties"]').value = vendor.specialties.join(',');
+          document.querySelector('[name="service_zip_codes"]').value = vendor.service_zip_codes ? vendor.service_zip_codes.join(',') : '';
+
+          // Change submit button and form action
+          const submitBtn = document.querySelector('button[type="submit"]');
+          submitBtn.textContent = 'Update Vendor';
+          editingVendorId = vendorId;
+
+          // Scroll to form
+          document.querySelector('.feature-form').scrollIntoView({ behavior: 'smooth' });
+
+        } catch (error) {
+          console.error('Error loading vendor:', error);
+          alert('Error loading vendor details');
+        }
+      }
+
+      // Delete vendor function
+      async function deleteVendor(vendorId) {
+        if (!confirm('Are you sure you want to deactivate this vendor?')) {
+          return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          window.location.href = 'auth.html';
+          return;
+        }
+
+        try {
+          const response = await fetch(`/api/vendors/${vendorId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            alert('Vendor deactivated successfully');
+            // Refresh the table
+            document.querySelector('.view-all').click();
+          } else {
+            alert('Error deactivating vendor');
+          }
+        } catch (error) {
+          console.error('Error deleting vendor:', error);
+          alert('Error deactivating vendor');
+        }
+      }
+
+      // Override form submission to handle both create and update
+      const originalFormSubmit = window.submitForm;
+      window.submitForm = async function(form, endpoint) {
+        const formData = new FormData(form);
+        const data = {};
+
+        for (let [key, value] of formData.entries()) {
+          if (value.trim() === '') continue;
+
+          // Handle array fields
+          if (key === 'specialties' || key === 'service_zip_codes') {
+            data[key] = value.split(',').map(s => s.trim()).filter(s => s);
+          } else {
+            data[key] = value;
+          }
+        }
+
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          window.location.href = 'auth.html';
+          return;
+        }
+
+        try {
+          let response;
+          if (editingVendorId) {
+            // Update existing vendor
+            response = await fetch(`${endpoint}/${editingVendorId}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(data)
+            });
+          } else {
+            // Create new vendor
+            response = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(data)
+            });
+          }
+
+          const result = await response.json();
+
+          if (response.ok) {
+            const resultDiv = form.querySelector('.result');
+            resultDiv.innerHTML = `<div style="color: green;">${editingVendorId ? 'Vendor updated successfully!' : 'Vendor added successfully!'}</div>`;
+
+            // Reset form
+            form.reset();
+            if (editingVendorId) {
+              const submitBtn = form.querySelector('button[type="submit"]');
+              submitBtn.textContent = 'Add Vendor';
+              editingVendorId = null;
+            }
+
+            // Refresh table
+            setTimeout(() => {
+              document.querySelector('.view-all').click();
+            }, 1000);
+          } else {
+            const resultDiv = form.querySelector('.result');
+            resultDiv.innerHTML = `<div style="color: red;">Error: ${result.detail || 'Unknown error'}</div>`;
+          }
+        } catch (error) {
+          console.error('Form submission error:', error);
+          const resultDiv = form.querySelector('.result');
+          resultDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+        }
+      };
+    </script>
+    <style>
+      .status-active {
+        color: #28a745;
+        font-weight: 500;
+      }
+
+      .status-inactive {
+        color: #dc3545;
+        font-weight: 500;
+      }
+
+      .edit-btn {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-right: 4px;
+      }
+
+      .edit-btn:hover {
+        background: #0056b3;
+      }
+
+      .delete-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .delete-btn:hover {
+        background: #c82333;
+      }
+    </style>
+  </body>
+</html>

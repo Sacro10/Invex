@@ -36,6 +36,7 @@ from models import (
     Lease as LeaseModel,
     Organization,
     User,
+    Vendor,
     Subscription as SubscriptionModel,
     BillingUpdateRetry as BillingUpdateRetryModel,
     Plan,
@@ -585,6 +586,30 @@ class MaintenanceResponse(BaseModel):
         }
 
 
+class VendorRequest(BaseModel):
+    name: str
+    email: str = None
+    phone: str = None
+    specialties: List[str] = Field(..., min_items=1)
+    service_zip_codes: List[str] = None
+
+
+class VendorResponse(BaseModel):
+    id: int
+    name: str
+    email: str = None
+    phone: str = None
+    specialties: List[str]
+    service_zip_codes: List[str] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
 class RentCollectionRequest(BaseModel):
     tenant_id: str
     amount: float = Field(..., gt=0)
@@ -864,14 +889,38 @@ def maintenance_request(
     user, org_id = user_data
     
     issue_lower = payload.issue.lower()
+    
+    # Determine required specialty based on issue keywords
+    required_specialty = None
     if any(keyword in issue_lower for keyword in ["leak", "plumbing", "sink", "toilet"]):
-        vendor = "AquaFlow Plumbing"
+        required_specialty = "plumbing"
     elif any(keyword in issue_lower for keyword in ["hvac", "heat", "ac", "cool", "thermostat"]):
-        vendor = "TempSure HVAC"
+        required_specialty = "hvac"
     elif any(keyword in issue_lower for keyword in ["electric", "outlet", "light", "power"]):
-        vendor = "BrightWire Electric"
-    else:
-        vendor = "GeneralFix Maintenance"
+        required_specialty = "electrical"
+    
+    # Find active vendor with matching specialty
+    vendor_name = "GeneralFix Maintenance"  # Default fallback
+    if required_specialty:
+        vendor_query = db.query(Vendor).filter(
+            Vendor.org_id == org_id,
+            Vendor.is_active == True
+        )
+        
+        for vendor in vendor_query.all():
+            specialties = json.loads(vendor.specialties)
+            if required_specialty in specialties:
+                vendor_name = vendor.name
+                break
+    
+    # If no specialty match found, use any active vendor as fallback
+    if vendor_name == "GeneralFix Maintenance":
+        fallback_vendor = db.query(Vendor).filter(
+            Vendor.org_id == org_id,
+            Vendor.is_active == True
+        ).first()
+        if fallback_vendor:
+            vendor_name = fallback_vendor.name
 
     base_days = {"high": 1, "medium": 2, "low": 4}[payload.priority]
     scheduled_for = (datetime.now(timezone.utc) + timedelta(days=base_days)).date().isoformat()
@@ -883,7 +932,7 @@ def maintenance_request(
         property_id=payload.property_id,
         issue=payload.issue,
         priority=payload.priority,
-        vendor=vendor,
+        vendor=vendor_name,
         scheduled_for=scheduled_for,
         status=status,
         created_at=created_at,
@@ -894,7 +943,7 @@ def maintenance_request(
 
     return MaintenanceResponse(
         id=request.id,
-        vendor=vendor,
+        vendor=vendor_name,
         scheduled_for=scheduled_for,
         status=status,
         created_at=created_at.isoformat(),
@@ -993,6 +1042,152 @@ def update_maintenance_request(
         db.commit()
     
     return {"message": "Status updated"}
+
+
+# ============================================================================
+# VENDOR MANAGEMENT ENDPOINTS
+# ============================================================================
+
+@app.post("/api/vendors", response_model=VendorResponse)
+def create_vendor(
+    payload: VendorRequest,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("maintenance_routing")),
+) -> VendorResponse:
+    """Create a new vendor."""
+    user, org_id = user_data
+    
+    created_at = datetime.now(timezone.utc)
+    
+    vendor = Vendor(
+        org_id=org_id,
+        name=payload.name,
+        email=payload.email,
+        phone=payload.phone,
+        specialties=json.dumps(payload.specialties),
+        service_zip_codes=json.dumps(payload.service_zip_codes) if payload.service_zip_codes else None,
+        is_active=True,
+        created_at=created_at,
+    )
+    db.add(vendor)
+    db.commit()
+    db.refresh(vendor)
+
+    return VendorResponse(
+        id=vendor.id,
+        name=vendor.name,
+        email=vendor.email,
+        phone=vendor.phone,
+        specialties=json.loads(vendor.specialties),
+        service_zip_codes=json.loads(vendor.service_zip_codes) if vendor.service_zip_codes else None,
+        is_active=vendor.is_active,
+        created_at=created_at,
+    )
+
+
+@app.get("/api/vendors")
+def get_vendors(
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("maintenance_routing")),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get all vendors for the organization."""
+    user, org_id = user_data
+    
+    vendors = (
+        db.query(Vendor)
+        .filter(Vendor.org_id == org_id)
+        .order_by(Vendor.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    return [
+        {
+            "id": v.id,
+            "name": v.name,
+            "email": v.email,
+            "phone": v.phone,
+            "specialties": json.loads(v.specialties),
+            "service_zip_codes": json.loads(v.service_zip_codes) if v.service_zip_codes else None,
+            "is_active": v.is_active,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        }
+        for v in vendors
+    ]
+
+
+@app.put("/api/vendors/{vendor_id}", response_model=VendorResponse)
+def update_vendor(
+    vendor_id: int,
+    payload: VendorRequest,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("maintenance_routing")),
+) -> VendorResponse:
+    """Update a vendor."""
+    user, org_id = user_data
+    
+    vendor = db.query(Vendor).filter(
+        Vendor.id == vendor_id,
+        Vendor.org_id == org_id
+    ).first()
+    
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    vendor.name = payload.name
+    vendor.email = payload.email
+    vendor.phone = payload.phone
+    vendor.specialties = json.dumps(payload.specialties)
+    vendor.service_zip_codes = json.dumps(payload.service_zip_codes) if payload.service_zip_codes else None
+    
+    db.commit()
+    db.refresh(vendor)
+
+    return VendorResponse(
+        id=vendor.id,
+        name=vendor.name,
+        email=vendor.email,
+        phone=vendor.phone,
+        specialties=json.loads(vendor.specialties),
+        service_zip_codes=json.loads(vendor.service_zip_codes) if vendor.service_zip_codes else None,
+        is_active=vendor.is_active,
+        created_at=vendor.created_at,
+    )
+
+
+@app.delete("/api/vendors/{vendor_id}")
+def delete_vendor(
+    vendor_id: int,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("maintenance_routing")),
+):
+    """Soft delete a vendor (set is_active=false)."""
+    user, org_id = user_data
+    
+    vendor = db.query(Vendor).filter(
+        Vendor.id == vendor_id,
+        Vendor.org_id == org_id
+    ).first()
+    
+    if not vendor:
+        raise HTTPException(status_code=404, detail="Vendor not found")
+    
+    vendor.is_active = False
+    db.commit()
+    
+    return {"message": "Vendor deactivated"}
+
+
+# ============================================================================
+# RENT COLLECTION ENDPOINTS
+# ============================================================================
 
 
 @app.post("/api/rent-collection", response_model=RentCollectionResponse)

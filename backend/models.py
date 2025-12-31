@@ -28,6 +28,7 @@ class Organization(Base):
     properties = relationship("Property", back_populates="organization", cascade="all, delete-orphan")
     screenings = relationship("TenantScreening", back_populates="organization", cascade="all, delete-orphan")
     maintenance = relationship("MaintenanceRequest", back_populates="organization", cascade="all, delete-orphan")
+    vendors = relationship("Vendor", back_populates="organization", cascade="all, delete-orphan")
     rent = relationship("RentCollection", back_populates="organization", cascade="all, delete-orphan")
     renewals = relationship("LeaseRenewal", back_populates="organization", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="organization", cascade="all, delete-orphan")
@@ -86,6 +87,23 @@ class MaintenanceRequest(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="maintenance")
+
+
+class Vendor(Base):
+    __tablename__ = "vendors"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    specialties = Column(String, nullable=False)  # JSON string for specialties list
+    service_zip_codes = Column(String, nullable=True)  # JSON string for zip codes list
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="vendors")
 
 
 class RentCollection(Base):

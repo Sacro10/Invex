@@ -32,6 +32,7 @@ class Organization(Base):
     renewals = relationship("LeaseRenewal", back_populates="organization", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="organization", cascade="all, delete-orphan")
     leases = relationship("Lease", back_populates="organization", cascade="all, delete-orphan")
+    checklists = relationship("MoveInChecklist", back_populates="organization", cascade="all, delete-orphan")
     subscriptions = relationship("Subscription", back_populates="organization", cascade="all, delete-orphan")
 
 
@@ -168,6 +169,24 @@ class Lease(Base):
 
     # Relationships
     organization = relationship("Organization", back_populates="leases")
+
+
+class MoveInChecklist(Base):
+    """Move-in checklist for tenants."""
+    __tablename__ = "move_in_checklists"
+
+    id = Column(Integer, primary_key=True, index=True)
+    org_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String, nullable=False)
+    property_id = Column(String, nullable=False)
+    items = Column(String, nullable=False)  # JSON string of checklist items
+    completed_items = Column(String, nullable=False, default="[]")  # JSON string of completed item IDs
+    status = Column(String, nullable=False, default="pending")  # pending, in_progress, completed
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    organization = relationship("Organization", back_populates="checklists")
 
 
 class Subscription(Base):

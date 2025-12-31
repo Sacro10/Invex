@@ -5,11 +5,12 @@ from fastapi import HTTPException, status
 
 import csv
 import io
+import json
 import math
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import FastAPI, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +32,7 @@ from models import (
     User,
     Subscription as SubscriptionModel,
     Plan,
+    MoveInChecklist as MoveInChecklistModel,
 )
 
 from auth import (
@@ -38,6 +40,7 @@ from auth import (
     verify_password,
     create_access_token,
     get_current_user,
+    require_capability,
 )
 
 import stripe
@@ -388,6 +391,23 @@ class PortalSessionResponse(BaseModel):
     url: str
 
 
+class MoveInChecklistRequest(BaseModel):
+    tenant_id: str
+    property_id: str
+    items: List[str] = Field(..., min_items=1)
+
+
+class MoveInChecklistResponse(BaseModel):
+    id: int
+    tenant_id: str
+    property_id: str
+    items: List[str]
+    completed_items: List[int]
+    status: str
+    created_at: str
+    completed_at: Optional[str]
+
+
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)) -> dict:
     """
@@ -409,7 +429,7 @@ def health(db: Session = Depends(get_db)) -> dict:
 
 @app.get("/api/export/tenant-screenings/csv")
 def export_tenant_screenings(
-    user_data=Depends(get_current_user),
+    user_data=Depends(require_capability("data_export_api_access")),
     db: Session = Depends(get_db),
 ):
     user, org_id = user_data
@@ -445,7 +465,7 @@ def export_tenant_screenings(
 @app.post("/api/tenant-screening", response_model=ScreeningResponse)
 def tenant_screening(
     payload: ScreeningRequest,
-    user_data=Depends(get_current_user),
+    user_data=Depends(require_capability("tenant_screening")),
     db: Session = Depends(get_db),
 ) -> ScreeningResponse:
     """Screen a tenant and calculate risk score."""
@@ -490,7 +510,7 @@ def tenant_screening(
 @app.post("/api/maintenance-request", response_model=MaintenanceResponse)
 def maintenance_request(
     payload: MaintenanceRequest,
-    user_data=Depends(get_current_user),
+    user_data=Depends(require_capability("maintenance_routing")),
     db: Session = Depends(get_db),
 ) -> MaintenanceResponse:
     """Create a maintenance request with auto vendor routing."""
@@ -536,7 +556,7 @@ def maintenance_request(
 
 @app.get("/api/maintenance-requests")
 def get_maintenance_requests(
-    user_data=Depends(get_current_user),
+    user_data=Depends(require_capability("maintenance_routing")),
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -568,7 +588,7 @@ def get_maintenance_requests(
 
 @app.get("/api/export/maintenance-requests/csv")
 def export_maintenance_requests(
-    user_data=Depends(get_current_user),
+    user_data=Depends(require_capability("data_export_api_access")),
     db: Session = Depends(get_db)
 ):
     """Export all maintenance requests as CSV for user's organization."""
@@ -609,6 +629,7 @@ def update_maintenance_request(
     payload: dict,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("maintenance_routing")),
 ):
     """Update maintenance request status."""
     user, org_id = user_data
@@ -632,6 +653,7 @@ def rent_collection(
     payload: RentCollectionRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("rent_collection")),
 ) -> RentCollectionResponse:
     """Record a rent collection."""
     user, org_id = user_data
@@ -671,6 +693,7 @@ def get_rent_collections(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _=Depends(require_capability("rent_collection")),
 ):
     """Get paginated list of rent collections for user's organization."""
     user, org_id = user_data
@@ -700,7 +723,8 @@ def get_rent_collections(
 @app.get("/api/export/rent-collections/csv")
 def export_rent_collections(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("data_export_api_access")),
 ):
     """Export all rent collections as CSV for user's organization."""
     user, org_id = user_data
@@ -738,6 +762,7 @@ def lease_renewal(
     payload: LeaseRenewalRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("lease_renewal_intelligence")),
 ) -> LeaseRenewalResponse:
     """Get AI lease renewal suggestion."""
     user, org_id = user_data
@@ -776,6 +801,7 @@ def get_lease_renewals(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _=Depends(require_capability("lease_renewal_intelligence")),
 ):
     """Get paginated list of lease renewals for user's organization."""
     user, org_id = user_data
@@ -805,7 +831,8 @@ def get_lease_renewals(
 @app.get("/api/export/lease-renewals/csv")
 def export_lease_renewals(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("data_export_api_access")),
 ):
     """Export all lease renewals as CSV for user's organization."""
     user, org_id = user_data
@@ -843,6 +870,7 @@ def notification(
     payload: NotificationRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("tenant_communications")),
 ) -> NotificationResponse:
     """Queue a notification for a tenant."""
     user, org_id = user_data
@@ -876,6 +904,7 @@ def get_notifications(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _=Depends(require_capability("tenant_communications")),
 ):
     """Get paginated list of notifications for user's organization."""
     user, org_id = user_data
@@ -905,7 +934,8 @@ def get_notifications(
 @app.get("/api/export/notifications/csv")
 def export_notifications(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("data_export_api_access")),
 ):
     """Export all notifications as CSV for user's organization."""
     user, org_id = user_data
@@ -943,6 +973,7 @@ def add_property(
     payload: PropertyRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("property_management")),
 ) -> PropertyResponse:
     """Add a new property."""
     user, org_id = user_data
@@ -981,6 +1012,7 @@ def get_properties(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _=Depends(require_capability("property_management")),
 ):
     """Get paginated list of properties for user's organization."""
     user, org_id = user_data
@@ -1011,7 +1043,8 @@ def get_properties(
 @app.get("/api/export/properties/csv")
 def export_properties(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("data_export_api_access")),
 ):
     """Export all properties as CSV for user's organization."""
     user, org_id = user_data
@@ -1050,6 +1083,7 @@ def create_lease(
     payload: LeaseRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
+    _=Depends(require_capability("lease_management")),
 ) -> LeaseResponse:
     """Create a new lease."""
     user, org_id = user_data
@@ -1085,6 +1119,7 @@ def get_leases(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _=Depends(require_capability("lease_management")),
 ):
     """Get paginated list of leases for user's organization."""
     user, org_id = user_data
@@ -1116,7 +1151,8 @@ def get_leases(
 @app.get("/api/export/leases/csv")
 def export_leases(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("data_export_api_access")),
 ):
     """Export all leases as CSV for user's organization."""
     user, org_id = user_data
@@ -1151,10 +1187,126 @@ def export_leases(
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=leases.csv"})
 
 
+@app.post("/api/move-in-checklists", response_model=MoveInChecklistResponse)
+def create_move_in_checklist(
+    payload: MoveInChecklistRequest,
+    user_data=Depends(require_capability("move_in_checklist")),
+    db: Session = Depends(get_db),
+) -> MoveInChecklistResponse:
+    """Create a move-in checklist for a tenant."""
+    user, org_id = user_data
+    
+    created_at = datetime.now(timezone.utc)
+    
+    # Default checklist items if none provided
+    if not payload.items:
+        payload.items = [
+            "Keys received",
+            "Lease signed",
+            "Security deposit paid",
+            "Utilities transferred",
+            "Move-in inspection completed",
+            "Welcome packet provided"
+        ]
+    
+    checklist = MoveInChecklistModel(
+        org_id=org_id,
+        tenant_id=payload.tenant_id,
+        property_id=payload.property_id,
+        items=json.dumps(payload.items),
+        completed_items=json.dumps([]),
+        status="pending",
+        created_at=created_at,
+    )
+    db.add(checklist)
+    db.commit()
+    db.refresh(checklist)
+
+    return MoveInChecklistResponse(
+        id=checklist.id,
+        tenant_id=checklist.tenant_id,
+        property_id=checklist.property_id,
+        items=json.loads(checklist.items),
+        completed_items=json.loads(checklist.completed_items),
+        status=checklist.status,
+        created_at=created_at.isoformat(),
+        completed_at=checklist.completed_at.isoformat() if checklist.completed_at else None,
+    )
+
+
+@app.get("/api/move-in-checklists")
+def get_move_in_checklists(
+    user_data=Depends(require_capability("move_in_checklist")),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """Get paginated list of move-in checklists for user's organization."""
+    user, org_id = user_data
+    
+    checklists = (
+        db.query(MoveInChecklistModel)
+        .filter(MoveInChecklistModel.org_id == org_id)
+        .order_by(MoveInChecklistModel.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "tenant_id": c.tenant_id,
+            "property_id": c.property_id,
+            "items": json.loads(c.items),
+            "completed_items": json.loads(c.completed_items),
+            "status": c.status,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "completed_at": c.completed_at.isoformat() if c.completed_at else None,
+        }
+        for c in checklists
+    ]
+
+
+@app.put("/api/move-in-checklists/{checklist_id}")
+def update_move_in_checklist(
+    checklist_id: int,
+    payload: dict,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("move_in_checklist")),
+):
+    """Update move-in checklist status or completed items."""
+    user, org_id = user_data
+    
+    checklist = db.query(MoveInChecklistModel).filter(
+        MoveInChecklistModel.id == checklist_id,
+        MoveInChecklistModel.org_id == org_id
+    ).first()
+    if not checklist:
+        return {"message": "Checklist not found"}
+    
+    if "completed_items" in payload:
+        checklist.completed_items = json.dumps(payload["completed_items"])
+        # Update status based on completion
+        items = json.loads(checklist.items)
+        completed = payload["completed_items"]
+        if len(completed) == len(items):
+            checklist.status = "completed"
+            checklist.completed_at = datetime.now(timezone.utc)
+        elif len(completed) > 0:
+            checklist.status = "in_progress"
+        else:
+            checklist.status = "pending"
+        db.commit()
+    
+    return {"message": "Checklist updated"}
+
+
 @app.get("/api/pulse", response_model=PulseResponse)
 def pulse(
     user_data=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("basic_reporting")),
 ) -> PulseResponse:
     """Get dashboard metrics for user's organization: occupancy, rent collected, open requests, recent timeline."""
     user, org_id = user_data

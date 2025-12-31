@@ -8,7 +8,7 @@ from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from starlette.requests import Request
 from sqlalchemy.orm import Session
-from models import User
+from models import User, Subscription
 from database import get_db
 from passlib.context import CryptContext
 from dotenv import load_dotenv
@@ -97,6 +97,98 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
+        )
+    
+    return user, org_id
+
+
+# Plan-based feature capabilities
+PLAN_CAPABILITIES = {
+    "core": [
+        "tenant_screening",
+        "maintenance_routing", 
+        "tenant_portal_reminders",  # notifications
+        "digital_lease_storage",    # leases
+        "move_in_checklist",
+        "basic_reporting",         # pulse metrics
+    ],
+    "growth": [
+        "tenant_screening",
+        "maintenance_routing",
+        "tenant_portal_reminders",
+        "digital_lease_storage",
+        "move_in_checklist", 
+        "basic_reporting",
+        "integrated_accounting",   # accounting endpoints
+        "automated_rent_collection",
+        "portfolio_reporting",
+        "vendor_sla_tracking",
+        "custom_workflow_rules",
+        "multi_property_dashboards",
+    ],
+    "premium": [
+        "tenant_screening",
+        "maintenance_routing",
+        "tenant_portal_reminders",
+        "digital_lease_storage",
+        "move_in_checklist",
+        "basic_reporting",
+        "integrated_accounting",
+        "automated_rent_collection", 
+        "portfolio_reporting",
+        "vendor_sla_tracking",
+        "custom_workflow_rules",
+        "multi_property_dashboards",
+        "market_pricing_intelligence",
+        "advanced_analytics",
+        "dedicated_onboarding",
+        "predictive_vacancy_alerts",
+        "priority_support",
+        "data_export_api_access",
+    ]
+}
+
+
+def get_org_plan(db: Session, org_id: int) -> str:
+    """Get the current subscription plan for an organization."""
+    subscription = db.query(Subscription).filter(
+        Subscription.org_id == org_id,
+        Subscription.status == "active"
+    ).first()
+    
+    if subscription:
+        return subscription.plan
+    else:
+        # Default to core for organizations without active subscriptions
+        return "core"
+
+
+async def require_capability(
+    capability: str,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Tuple[User, int]:
+    """FastAPI dependency that checks if the organization has access to a capability.
+    
+    Args:
+        capability: The capability name to check
+        
+    Returns:
+        Tuple[User, int]: Same as get_current_user
+        
+    Raises:
+        HTTPException: 403 if capability not available in current plan
+    """
+    user, org_id = user_data
+    
+    # Get current plan
+    plan = get_org_plan(db, org_id)
+    
+    # Check if capability is available in plan
+    if capability not in PLAN_CAPABILITIES.get(plan, []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"This feature requires a higher plan. Current plan: {plan}. Required capability: {capability}",
         )
     
     return user, org_id

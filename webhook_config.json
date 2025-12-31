@@ -1,0 +1,9 @@
+{
+  "url": "https://index-property-management-production.up.railway.app/api/billing/webhook",
+  "enabled_events": [
+    "customer.subscription.created",
+    "customer.subscription.updated",
+    "customer.subscription.deleted"
+  ],
+  "description": "INDEX Property Management - Subscription Webhooks"
+}

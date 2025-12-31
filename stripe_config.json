@@ -16,7 +16,11 @@
       "price_per_unit": 500
     }
   ],
-  "price_ids": {},
+  "price_ids": {
+    "core_plan": "price_1SkUfm4BpcsFhc9dMRCCFvHg",
+    "growth_plan": "price_1SkUfn4BpcsFhc9danH7sarr",
+    "premium_plan": "price_1SkUfn4BpcsFhc9dcquFuxgT"
+  },
   "webhook_url": "https://your-app.railway.app/api/billing/webhook",
   "webhook_events": [
     "customer.subscription.created",

@@ -9,6 +9,10 @@ Usage:
     export STRIPE_SECRET_KEY=sk_test_...
     python stripe_setup.py
 
+Or run interactively:
+    python stripe_setup.py
+    (and enter your key when prompted)
+
 Requirements:
     pip install stripe
 """
@@ -16,13 +20,19 @@ Requirements:
 import os
 import stripe
 import json
+import getpass
+
+# Get Stripe secret key
+stripe_secret_key = os.getenv("STRIPE_SECRET_KEY")
+if not stripe_secret_key:
+    print("🔑 Stripe Secret Key not found in environment variables.")
+    stripe_secret_key = getpass.getpass("Enter your Stripe Secret Key (sk_test_...): ").strip()
+    if not stripe_secret_key:
+        print("❌ No Stripe Secret Key provided. Exiting.")
+        exit(1)
 
 # Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-if not stripe.api_key:
-    print("❌ Error: STRIPE_SECRET_KEY environment variable not set")
-    print("   Please set it with: export STRIPE_SECRET_KEY=sk_test_...")
-    exit(1)
+stripe.api_key = stripe_secret_key
 
 def create_product(name, description):
     """Create a Stripe product."""
@@ -92,14 +102,15 @@ def main():
     print("\n📋 Add these environment variables to your Railway project:")
     print("# Stripe Configuration")
     for plan_name, price_id in price_ids.items():
-        env_var = f"STRIPE_PRICE_{plan_name.upper()}"
+        env_var = f"STRIPE_PRICE_{plan_name.replace('_plan', '').upper()}"
         print(f'{env_var}={price_id}')
 
     print(f"\n# Webhook Secret (get this from Stripe Dashboard > Webhooks)")
     print("# STRIPE_WEBHOOK_SECRET=whsec_...")
 
     print("\n# Your Stripe Secret Key")
-    print(f"STRIPE_SECRET_KEY={stripe.api_key}")
+    masked_key = stripe_secret_key[:10] + "..." + stripe_secret_key[-4:] if len(stripe_secret_key) > 14 else stripe_secret_key
+    print(f"STRIPE_SECRET_KEY={masked_key}")
 
     print("\n# Frontend URL (update for production)")
     print("FRONTEND_URL=https://your-app.railway.app")

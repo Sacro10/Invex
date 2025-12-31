@@ -58,6 +58,7 @@ class MeResponse(BaseModel):
     email: str
     role: str
     organization_name: str
+    created_at: datetime
 from fastapi.routing import APIRoute
 def is_protected_route(route):
     path = getattr(route, 'path', None)
@@ -106,6 +107,7 @@ class MeResponse(BaseModel):
     email: str
     role: str
     organization_name: str
+    created_at: datetime
 
 # Request ID middleware
 @app.middleware("http")
@@ -526,7 +528,8 @@ def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
         org_id=org.id,
         email=user.email,
         role=user.role,
-        organization_name=org.name
+        organization_name=org.name,
+        created_at=user.created_at
     )
 
 
@@ -682,6 +685,7 @@ class PulseResponse(BaseModel):
 
 
 class PropertyRequest(BaseModel):
+    property_id: str
     address: str
     city: str
     state: str
@@ -692,6 +696,7 @@ class PropertyRequest(BaseModel):
 
 class PropertyResponse(BaseModel):
     id: int
+    property_id: str
     address: str
     city: str
     state: str
@@ -1324,6 +1329,7 @@ def add_property(
     
     prop = PropertyModel(
         org_id=org_id,
+        property_id=payload.property_id,
         address=payload.address,
         city=payload.city,
         state=payload.state,
@@ -1342,13 +1348,14 @@ def add_property(
 
     return PropertyResponse(
         id=prop.id,
+        property_id=prop.property_id,
         address=payload.address,
         city=payload.city,
         state=payload.state,
         zip_code=payload.zip_code,
         property_type=prop.property_type,
         units=prop.units,
-        created_at=created_at.isoformat(),
+        created_at=created_at,
     )
 
 
@@ -1374,6 +1381,7 @@ def get_properties(
     return [
         {
             "id": p.id,
+            "property_id": p.property_id,
             "address": p.address,
             "city": p.city,
             "state": p.state,

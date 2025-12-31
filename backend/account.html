@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>INDEX - Account Details</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spectral:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <a href="index.html" class="logo">
+          <svg class="logo-mark" viewBox="0 0 220 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="leafGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stop-color="#9fd4c7" />
+                <stop offset="100%" stop-color="#4fc1c7" />
+              </linearGradient>
+              <linearGradient id="petalGradient" x1="0" x2="1" y1="1" y2="0">
+                <stop offset="0%" stop-color="#67c6d3" />
+                <stop offset="100%" stop-color="#3ba9c7" />
+              </linearGradient>
+            </defs>
+            <rect x="104" y="10" width="10" height="70" rx="4" fill="#0f1c22" />
+            <path
+              d="M108 38c-12 4-22 14-24 26 10-2 20-10 24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M110 46c12 6 22 16 24 28-10-2-20-10-24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <ellipse cx="110" cy="8" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="88" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="132" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="84" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="136" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <path
+              d="M108 38c-12 4-22 14-24 26 10-2 20-10 24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <path
+              d="M110 46c12 6 22 16 24 28-10-2-20-10-24-21"
+              fill="none"
+              stroke="url(#leafGradient)"
+              stroke-width="3"
+              stroke-linecap="round"
+            />
+            <ellipse cx="110" cy="8" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="88" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="132" cy="18" rx="12" ry="8" fill="url(#leafGradient)" />
+            <ellipse cx="84" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+            <ellipse cx="136" cy="34" rx="10" ry="7" fill="url(#leafGradient)" />
+          </svg>
+          <span class="logo-text">INDEX</span>
+        </a>
+        <nav class="nav">
+          <a href="tenant-screening.html">Screening</a>
+          <a href="maintenance.html">Maintenance</a>
+          <a href="accounting.html">Accounting</a>
+          <a href="lease-renewal.html">Renewals</a>
+          <a href="leases.html">Leases</a>
+          <a href="communication.html">Comms</a>
+          <a href="properties.html">Properties</a>
+          <a href="account.html" class="active">Account</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="feature-section">
+          <div class="feature-header">
+            <h1>Account Details</h1>
+            <p>
+              View your account information and current subscription plan.
+            </p>
+          </div>
+
+          <div class="account-details">
+            <div class="account-card">
+              <h2>User Information</h2>
+              <div id="user-info" class="info-grid">
+                <div class="info-item">
+                  <label>Email:</label>
+                  <span id="user-email">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Role:</label>
+                  <span id="user-role">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Organization:</label>
+                  <span id="org-name">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Member Since:</label>
+                  <span id="member-since">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="account-card">
+              <h2>Subscription Plan</h2>
+              <div id="plan-info" class="info-grid">
+                <div class="info-item">
+                  <label>Current Plan:</label>
+                  <span id="plan-name">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Status:</label>
+                  <span id="plan-status">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Billing Cycle:</label>
+                  <span id="billing-cycle">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Next Billing:</label>
+                  <span id="next-billing">-</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="account-card">
+              <h2>Usage Statistics</h2>
+              <div id="usage-info" class="info-grid">
+                <div class="info-item">
+                  <label>Total Properties:</label>
+                  <span id="total-properties">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Total Units:</label>
+                  <span id="total-units">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Active Leases:</label>
+                  <span id="active-leases">-</span>
+                </div>
+                <div class="info-item">
+                  <label>Open Requests:</label>
+                  <span id="open-requests">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="account-actions">
+            <button class="secondary" onclick="logout()">Logout</button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script>
+      const API_BASE = window.API_BASE || "";
+
+      // Load account details on page load
+      document.addEventListener('DOMContentLoaded', loadAccountDetails);
+
+      async function loadAccountDetails() {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          window.location.href = 'auth.html';
+          return;
+        }
+
+        try {
+          // Load user info
+          const userRes = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (userRes.status === 401) {
+            localStorage.removeItem('access_token');
+            window.location.href = 'auth.html';
+            return;
+          }
+          const userData = await userRes.json();
+
+          document.getElementById('user-email').textContent = userData.email;
+          document.getElementById('user-role').textContent = userData.role;
+          document.getElementById('org-name').textContent = userData.organization_name || 'N/A';
+          document.getElementById('member-since').textContent = new Date(userData.created_at).toLocaleDateString();
+
+          // Load subscription info
+          const subRes = await fetch(`${API_BASE}/api/billing/subscription`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (subRes.ok) {
+            const subData = await subRes.json();
+            document.getElementById('plan-name').textContent = subData.plan_name || 'Free';
+            document.getElementById('plan-status').textContent = subData.status || 'Active';
+            document.getElementById('billing-cycle').textContent = subData.interval || 'Monthly';
+            document.getElementById('next-billing').textContent = subData.current_period_end ? new Date(subData.current_period_end * 1000).toLocaleDateString() : 'N/A';
+          } else {
+            document.getElementById('plan-name').textContent = 'Free';
+            document.getElementById('plan-status').textContent = 'Active';
+            document.getElementById('billing-cycle').textContent = 'N/A';
+            document.getElementById('next-billing').textContent = 'N/A';
+          }
+
+          // Load usage stats from pulse
+          const pulseRes = await fetch(`${API_BASE}/api/pulse`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (pulseRes.ok) {
+            const pulseData = await pulseRes.json();
+            document.getElementById('total-properties').textContent = 'N/A'; // Would need separate endpoint
+            document.getElementById('total-units').textContent = 'N/A'; // Would need separate endpoint
+            document.getElementById('active-leases').textContent = 'N/A'; // Would need separate endpoint
+            document.getElementById('open-requests').textContent = pulseData.open_requests || 0;
+          }
+
+        } catch (error) {
+          console.error('Error loading account details:', error);
+        }
+      }
+
+      function logout() {
+        localStorage.removeItem('access_token');
+        window.location.href = 'auth.html';
+      }
+    </script>
+    <style>
+      .account-details {
+        display: grid;
+        gap: 2rem;
+        margin: 2rem 0;
+      }
+
+      .account-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        padding: 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+      }
+
+      .account-card h2 {
+        margin: 0 0 1.5rem 0;
+        color: var(--ink, #0f1c22);
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+      }
+
+      .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .info-item label {
+        font-weight: 500;
+        color: var(--ink, #0f1c22);
+        font-size: 0.9rem;
+      }
+
+      .info-item span {
+        color: var(--ink, #0f1c22);
+        font-size: 1rem;
+      }
+
+      .account-actions {
+        margin-top: 2rem;
+        text-align: center;
+      }
+
+      .account-actions .secondary {
+        background: #f5f5f5;
+        color: var(--ink, #0f1c22);
+        border: 1px solid #ddd;
+      }
+
+      .account-actions .secondary:hover {
+        background: #e5e5e5;
+      }
+    </style>
+  </body>
+</html>

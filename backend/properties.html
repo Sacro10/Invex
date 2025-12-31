@@ -83,6 +83,10 @@
         <form class="feature-form" data-endpoint="/api/properties" data-view-endpoint="/api/properties" data-export-endpoint="/api/export/properties/csv">
           <div class="form-grid">
             <label class="form-field">
+              Property ID
+              <input type="text" name="property_id" placeholder="PROP-001" required />
+            </label>
+            <label class="form-field">
               Address
               <input type="text" name="address" placeholder="123 Main St" required />
             </label>
@@ -117,7 +121,7 @@
         </form>
 
         <div class="feature-actions">
-          <button class="secondary view-all" data-endpoint="/api/properties" data-table="properties-table" data-columns='[{"key":"id","label":"ID"},{"key":"address","label":"Address"},{"key":"city","label":"City"},{"key":"state","label":"State"},{"key":"zip_code","label":"ZIP"},{"key":"property_type","label":"Type"},{"key":"units","label":"Units"},{"key":"actions","label":"Actions"}]'>View All</button>
+          <button class="secondary view-all" data-endpoint="/api/properties" data-table="properties-table" data-columns='[{"key":"id","label":"ID"},{"key":"property_id","label":"Property ID"},{"key":"address","label":"Address"},{"key":"city","label":"City"},{"key":"state","label":"State"},{"key":"zip_code","label":"ZIP"},{"key":"property_type","label":"Type"},{"key":"units","label":"Units"},{"key":"actions","label":"Actions"}]'>View All</button>
           <button class="secondary export-csv" data-endpoint="/api/export/properties/csv">Export CSV</button>
         </div>
         <div id="properties-table" class="data-table"></div>

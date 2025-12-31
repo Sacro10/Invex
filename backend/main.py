@@ -474,7 +474,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     
     # Generate token
     access_token = create_access_token(
-        data={"sub": user.id, "org_id": user.org_id, "email": user.email}
+        data={"sub": str(user.id), "org_id": user.org_id, "email": user.email}
     )
     
     return AuthResponse(
@@ -502,7 +502,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     
     # Generate token
     access_token = create_access_token(
-        data={"sub": user.id, "org_id": user.org_id, "email": user.email}
+        data={"sub": str(user.id), "org_id": user.org_id, "email": user.email}
     )
     
     return AuthResponse(

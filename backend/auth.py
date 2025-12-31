@@ -45,7 +45,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": int(expire.timestamp())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -87,10 +87,14 @@ async def get_current_user(
     token = auth_header[7:]  # Remove "Bearer " prefix
     payload = verify_token(token)
     
-    user_id: int = payload.get("sub")
+    user_id_str: str = payload.get("sub")
+    if user_id_str is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims",
+        )
+    user_id = int(user_id_str)
     org_id: int = payload.get("org_id")
-    
-    if user_id is None or org_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token claims",

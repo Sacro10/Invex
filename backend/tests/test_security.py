@@ -58,12 +58,12 @@ class TestSettingsValidation:
     def test_cors_allow_credentials_false_with_wildcard(self):
         """Test that allow_credentials is False when origins contains wildcard."""
         settings = Settings(cors_origins="*,http://example.com")
-        assert settings.cors_allow_credentials is False
+        assert not settings.cors_allow_credentials
 
     def test_cors_allow_credentials_true_without_wildcard(self):
         """Test that allow_credentials is True when origins doesn't contain wildcard."""
         settings = Settings(cors_origins="http://example.com,https://app.com")
-        assert settings.cors_allow_credentials is True
+        assert settings.cors_allow_credentials
 
     def test_cors_origins_list_parsing(self):
         """Test that CORS origins are properly parsed and trimmed."""

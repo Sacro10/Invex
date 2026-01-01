@@ -50,7 +50,7 @@ def test_login_success(client: pytest.fixture, test_user: pytest.fixture):
     assert data["email"] == "test@example.com"
 
 
-def test_login_wrong_password(client: pytest.fixture, test_user: pytest.fixture):
+def test_login_wrong_password(client: pytest.fixture):
     """Test login with wrong password."""
     response = client.post("/api/auth/login", json={
         "email": "test@example.com",

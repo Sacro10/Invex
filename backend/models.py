@@ -212,6 +212,7 @@ class Property(Base):
     state = Column(String, nullable=False)
     zip_code = Column(String, nullable=False)
     property_type = Column(String, nullable=False)
+    units = Column(Integer, nullable=False, default=1)  # For future use
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
@@ -263,6 +264,7 @@ class Subscription(Base):
     stripe_customer_id = Column(String, nullable=False)
     stripe_subscription_id = Column(String, nullable=False)
     plan = Column(String, nullable=False)  # core, growth, premium
+    unit_quantity = Column(Integer, nullable=False, default=1)  # For future use
     status = Column(String, nullable=False)  # active, canceled, past_due, etc.
     current_period_end = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

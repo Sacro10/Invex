@@ -42,8 +42,7 @@ def setup_database():
 @pytest.fixture(autouse=True)
 def clear_database():
     """Clear all data from tables before each test."""
-    yield
-    # Clear all tables after each test
+    # Clear all tables before each test
     from sqlalchemy import text
     with engine.connect() as conn:
         # Disable foreign key checks for SQLite

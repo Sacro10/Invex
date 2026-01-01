@@ -497,6 +497,8 @@ class AuthResponse(BaseModel):
 @app.post("/api/auth/register", response_model=AuthResponse)
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user with a new organization."""
+    from datetime import datetime, timezone, timedelta
+    
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == request.email).first()
     if existing_user:
@@ -509,7 +511,7 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
     # Create organization
     org = Organization(
         name=request.organization_name,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(org)
     db.flush()  # Get org ID without committing yet
@@ -520,9 +522,23 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         email=request.email,
         password_hash=hash_password(request.password),
         role="owner",  # First user is always owner
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(user)
+    
+    # Create core plan subscription (free tier)
+    core_subscription = SubscriptionModel(
+        org_id=org.id,
+        stripe_customer_id="free-tier",  # Special identifier for free core plan
+        stripe_subscription_id="core-plan-free",
+        plan="core",
+        unit_quantity=1,  # Default for core plan
+        status="active",
+        current_period_end=datetime.now(timezone.utc) + timedelta(days=365*100),  # Effectively never expires
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(core_subscription)
+    
     db.commit()
     db.refresh(user)
     
@@ -1848,6 +1864,7 @@ def add_property(
         state=payload.state,
         zip_code=payload.zip_code,
         property_type=payload.property_type,
+        units=1,  # Default for now
         created_at=created_at,
     )
     db.add(prop)

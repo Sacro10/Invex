@@ -238,7 +238,7 @@ def get_tenant_screenings(
 
 - **SQLAlchemy==2.0.23** - ORM and database abstraction
 - **alembic==1.12.1** - Database migrations
-- **psycopg[binary]==3.2.1** - PostgreSQL driver (Python 3.13 compatible)
+- **psycopg[binary]==3.2.2** - PostgreSQL driver (Python 3.13 compatible)
 - **python-dotenv==1.0.0** - Environment variable loading
 
 See `backend/requirements.txt` for full dependency list.

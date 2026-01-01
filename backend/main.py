@@ -2446,4 +2446,42 @@ def enterprise_analytics(
     return {"message": "Enterprise analytics data"}
 
 
-app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")
+# Public home page route (no authentication required)
+@app.get("/", response_class=HTMLResponse)
+async def home_page():
+    """Serve the public home page without authentication."""
+    index_path = BASE_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Home page not found")
+
+
+# Protected HTML pages (require authentication)
+@app.get("/auth.html", response_class=HTMLResponse)
+async def auth_page():
+    """Serve auth page (public for login/signup)."""
+    file_path = BASE_DIR / "auth.html"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Page not found")
+
+@app.get("/{page}.html", response_class=HTMLResponse)
+async def protected_page(page: str, user_data=Depends(get_current_user)):
+    """Serve protected HTML pages with authentication."""
+    # List of protected pages (all HTML files except index.html and auth.html)
+    protected_pages = {
+        "payment", "terms", "accounting", "account", "properties",
+        "communication", "billing-success", "leases", "maintenance",
+        "lease-renewal", "tenant-screening", "privacy", "vendors"
+    }
+
+    if page in protected_pages:
+        file_path = BASE_DIR / f"{page}.html"
+        if file_path.exists():
+            return FileResponse(file_path, media_type="text/html")
+
+    raise HTTPException(status_code=404, detail="Page not found")
+
+
+# Mount static files (CSS, JS, images, etc.) - these remain public
+app.mount("/", StaticFiles(directory=BASE_DIR, html=False), name="static")

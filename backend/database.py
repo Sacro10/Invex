@@ -21,9 +21,9 @@ DATABASE_URL = settings.database_url
 
 # Configure engine based on database type
 if DATABASE_URL.startswith("postgresql"):
-    # PostgreSQL - use standard connection pooling
+    # PostgreSQL - use psycopg3 driver (compatible with Python 3.13)
     engine = create_engine(
-        DATABASE_URL,
+        DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1),
         echo=False,
         pool_pre_ping=True,  # Verify connections before use
     )

@@ -74,7 +74,7 @@ return [{...} for s in screenings]
 New packages:
 - `SQLAlchemy==2.0.23` - ORM and query builder
 - `alembic==1.12.1` - Database versioning
-- `psycopg2-binary==2.9.9` - PostgreSQL driver
+- `psycopg[binary]==3.2.1` - PostgreSQL driver (Python 3.13 compatible)
 - `python-dotenv==1.0.0` - Environment variable loading
 
 ### 6. Documentation

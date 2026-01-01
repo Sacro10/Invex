@@ -195,7 +195,7 @@ alembic upgrade head
 ### PostgreSQL connection issues on Railway
 - Ensure `DATABASE_URL` is set in Railway environment
 - Check connection string format: `postgresql://user:pass@host:5432/dbname`
-- Use `psycopg2-binary` (already in requirements)
+- Use `psycopg[binary]` (already in requirements)
 
 ## Performance Improvements
 
@@ -238,7 +238,7 @@ def get_tenant_screenings(
 
 - **SQLAlchemy==2.0.23** - ORM and database abstraction
 - **alembic==1.12.1** - Database migrations
-- **psycopg2-binary==2.9.9** - PostgreSQL driver
+- **psycopg[binary]==3.2.1** - PostgreSQL driver (Python 3.13 compatible)
 - **python-dotenv==1.0.0** - Environment variable loading
 
 See `backend/requirements.txt` for full dependency list.

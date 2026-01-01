@@ -134,21 +134,14 @@ app = FastAPI(
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-# Configure structured logging with request ID
+# Configure structured logging
 logging.basicConfig(
     level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "message": "%(message)s"}',
+    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
     datefmt="%Y-%m-%dT%H:%M:%S"
 )
 
-# Custom logger with request ID
-class RequestIdFilter(logging.Filter):
-    def filter(self, record):
-        record.request_id = getattr(record, 'request_id', 'no-request-id')
-        return True
-
 logger = logging.getLogger(__name__)
-logger.addFilter(RequestIdFilter())
 
 # Request ID middleware
 @app.middleware("http")
@@ -181,27 +174,6 @@ class MeResponse(BaseModel):
     role: str
     organization_name: str
     created_at: datetime
-
-# Request ID middleware
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = str(uuid.uuid4())
-    # Add request ID to request state for exception handlers
-    request.state.request_id = request_id
-
-    # Add request ID to logging context
-    class RequestIdFilter(logging.Filter):
-        def filter(self, record):
-            record.request_id = request_id
-            return True
-
-    # Apply filter to all handlers
-    for handler in logging.getLogger().handlers:
-        handler.addFilter(RequestIdFilter())
-
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
 
 # Security headers middleware
 @app.middleware("http")

@@ -20,7 +20,7 @@ from typing import Optional, List
 from fastapi import FastAPI, Depends, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -2466,7 +2466,7 @@ async def auth_page():
     raise HTTPException(status_code=404, detail="Page not found")
 
 @app.get("/{page}.html", response_class=HTMLResponse)
-async def protected_page(page: str, user_data=Depends(get_current_user)):
+async def protected_page(page: str, request: Request, db: Session = Depends(get_db)):
     """Serve protected HTML pages with authentication."""
     # List of protected pages (all HTML files except index.html and auth.html)
     protected_pages = {
@@ -2476,6 +2476,31 @@ async def protected_page(page: str, user_data=Depends(get_current_user)):
     }
 
     if page in protected_pages:
+        # Check authentication manually
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            # Not authenticated, redirect to home page
+            return RedirectResponse(url="/", status_code=302)
+        
+        token = auth_header[7:]  # Remove "Bearer " prefix
+        try:
+            from auth import verify_token
+            payload = verify_token(token)
+            user_id_str: str = payload.get("sub")
+            org_id: int = payload.get("org_id")
+            if user_id_str is None or org_id is None:
+                return RedirectResponse(url="/", status_code=302)
+            
+            user_id = int(user_id_str)
+            user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
+            if user is None:
+                return RedirectResponse(url="/", status_code=302)
+                
+        except Exception:
+            # Any authentication error, redirect to home
+            return RedirectResponse(url="/", status_code=302)
+        
+        # User is authenticated, serve the page
         file_path = BASE_DIR / f"{page}.html"
         if file_path.exists():
             return FileResponse(file_path, media_type="text/html")

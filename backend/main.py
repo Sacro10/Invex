@@ -2479,8 +2479,8 @@ async def protected_page(page: str, request: Request, db: Session = Depends(get_
         # Check authentication manually
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            # Not authenticated, redirect to home page
-            return RedirectResponse(url="/", status_code=302)
+            # Not authenticated, redirect to auth page for login/signup
+            return RedirectResponse(url="/auth.html", status_code=302)
         
         token = auth_header[7:]  # Remove "Bearer " prefix
         try:
@@ -2489,15 +2489,15 @@ async def protected_page(page: str, request: Request, db: Session = Depends(get_
             user_id_str: str = payload.get("sub")
             org_id: int = payload.get("org_id")
             if user_id_str is None or org_id is None:
-                return RedirectResponse(url="/", status_code=302)
+                return RedirectResponse(url="/auth.html", status_code=302)
             
             user_id = int(user_id_str)
             user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
             if user is None:
-                return RedirectResponse(url="/", status_code=302)
+                return RedirectResponse(url="/auth.html", status_code=302)
                 
         except Exception:
-            # Any authentication error, redirect to home
+            # Any authentication error, redirect to auth page
             return RedirectResponse(url="/", status_code=302)
         
         # User is authenticated, serve the page

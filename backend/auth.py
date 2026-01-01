@@ -12,12 +12,13 @@ from models import User, Subscription
 from database import get_db
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+from settings import settings
 
 # Load environment variables from .env if present
 load_dotenv()
 
 # Configuration
-SECRET_KEY = os.getenv("JWT_SECRET", "change-this-in-production")
+SECRET_KEY = settings.jwt_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -120,6 +121,7 @@ PLAN_CAPABILITIES = {
         "digital_lease_storage",    # leases
         "move_in_checklist",
         "basic_reporting",         # pulse metrics
+        "property_management",     # basic property CRUD
     ],
     "growth": [
         "tenant_screening",
@@ -134,6 +136,7 @@ PLAN_CAPABILITIES = {
         "vendor_sla_tracking",
         "custom_workflow_rules",
         "multi_property_dashboards",
+        "property_management",     # property CRUD
     ],
     "premium": [
         "tenant_screening",
@@ -154,6 +157,7 @@ PLAN_CAPABILITIES = {
         "predictive_vacancy_alerts",
         "priority_support",
         "data_export_api_access",
+        "property_management",     # property CRUD
     ]
 }
 

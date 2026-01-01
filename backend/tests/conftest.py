@@ -59,13 +59,16 @@ def client():
     """Create a test client with overridden database dependency."""
     # Mock password functions before importing app to avoid bcrypt issues
     import sys
-    from unittest.mock import patch
+    from unittest.mock import patch, MagicMock
     
-    mock_hash = lambda pwd: f"mock_hash_{pwd}"
-    mock_verify = lambda plain, hashed: plain in hashed
+    # Create a mock crypt context that always works
+    mock_context = MagicMock()
+    mock_context.hash.return_value = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewfBPjYQmHqU3GkO"
+    mock_context.verify.return_value = True
     
-    with patch('auth.hash_password', side_effect=mock_hash), \
-         patch('auth.verify_password', side_effect=mock_verify):
+    with patch('auth.pwd_context', mock_context), \
+         patch('auth.hash_password', side_effect=lambda pwd: "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewfBPjYQmHqU3GkO"), \
+         patch('auth.verify_password', side_effect=lambda plain, hashed: plain == "password123"):
         
         # Import app after mocking
         from main import app
@@ -142,3 +145,85 @@ def db_session():
         yield db
     finally:
         db.close()
+
+
+@pytest.fixture
+def free_org(client, db_session):
+    """Create a test organization with free plan."""
+    import uuid
+    from models import Organization, User
+    
+    org = Organization(name=f"Free Org {uuid.uuid4()}", created_at=None)
+    db_session.add(org)
+    db_session.commit()
+    db_session.refresh(org)
+    
+    # Create user for the org
+    from auth import hash_password
+    user = User(
+        org_id=org.id,
+        email=f"free-{uuid.uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+        role="owner"
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    # Login to get token
+    response = client.post("/api/auth/login", json={
+        "email": user.email,
+        "password": "password123"
+    })
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    
+    return {"org": org, "user": user, "token": token}
+
+
+@pytest.fixture  
+def pro_org(client, db_session):
+    """Create a test organization with pro plan."""
+    import uuid
+    from models import Organization, User, Subscription
+    from datetime import datetime, timezone, timedelta
+    
+    org = Organization(name=f"Pro Org {uuid.uuid4()}", created_at=None)
+    db_session.add(org)
+    db_session.commit()
+    db_session.refresh(org)
+    
+    # Create user for the org
+    from auth import hash_password
+    user = User(
+        org_id=org.id,
+        email=f"pro-{uuid.uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+        role="owner"
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    # Create pro subscription
+    subscription = Subscription(
+        org_id=org.id,
+        stripe_customer_id=f"cus_pro_{uuid.uuid4()}",
+        stripe_subscription_id=f"sub_pro_{uuid.uuid4()}",
+        plan="growth",  # Using growth as pro plan
+        status="active",
+        current_period_end=datetime.now(timezone.utc) + timedelta(days=30)
+    )
+    db_session.add(subscription)
+    db_session.commit()
+    db_session.refresh(subscription)
+    
+    # Login to get token
+    response = client.post("/api/auth/login", json={
+        "email": user.email,
+        "password": "password123"
+    })
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    
+    return {"org": org, "user": user, "subscription": subscription, "token": token}

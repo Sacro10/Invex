@@ -10,7 +10,7 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
     """Test that organizations cannot see each other's properties."""
     # Create first organization and user
     response1 = client.post("/api/auth/register", json={
-        "org_name": "Org One",
+        "organization_name": "Org One",
         "email": "org1@example.com",
         "password": "password123"
     })
@@ -20,7 +20,7 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
 
     # Create second organization and user
     response2 = client.post("/api/auth/register", json={
-        "org_name": "Org Two",
+        "organization_name": "Org Two",
         "email": "org2@example.com",
         "password": "password123"
     })
@@ -30,6 +30,7 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
 
     # Org 1 creates a property
     response = client.post("/api/properties", headers=headers1, json={
+        "property_id": "PROP001",
         "address": "123 Main St",
         "city": "Anytown",
         "state": "CA",
@@ -42,6 +43,7 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
 
     # Org 2 creates a different property
     response = client.post("/api/properties", headers=headers2, json={
+        "property_id": "PROP002",
         "address": "456 Oak Ave",
         "city": "Othertown",
         "state": "NY",
@@ -50,6 +52,7 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
         "units": 1
     })
     assert response.status_code == 200
+    property_data2 = response.json()
 
     # Org 1 should only see their property
     response = client.get("/api/properties", headers=headers1)
@@ -68,7 +71,8 @@ def test_property_isolation_between_orgs(client: pytest.fixture, db_session: Ses
     assert properties[0]["city"] == "Othertown"
 
     # Org 1 should not be able to access Org 2's property directly
-    response = client.put(f"/api/properties/{property_data['id']}", headers=headers2, json={
+    response = client.put(f"/api/properties/{property_data2['id']}", headers=headers1, json={
+        "property_id": "PROP002",
         "address": "456 Oak Ave",
         "city": "Othertown",
         "state": "NY",
@@ -83,7 +87,7 @@ def test_tenant_screening_isolation(client: pytest.fixture):
     """Test that tenant screenings are isolated between organizations."""
     # Create first organization and user
     response1 = client.post("/api/auth/register", json={
-        "org_name": "Screening Org One",
+        "organization_name": "Screening Org One",
         "email": "screen1@example.com",
         "password": "password123"
     })
@@ -93,7 +97,7 @@ def test_tenant_screening_isolation(client: pytest.fixture):
 
     # Create second organization and user
     response2 = client.post("/api/auth/register", json={
-        "org_name": "Screening Org Two",
+        "organization_name": "Screening Org Two",
         "email": "screen2@example.com",
         "password": "password123"
     })

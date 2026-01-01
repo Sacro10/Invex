@@ -6,13 +6,18 @@ Supports:
 - SQLite locally (fallback to ./local.db if DATABASE_URL not set)
 """
 
+import logging
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-# Get database URL from environment, default to SQLite
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./local.db")
+from settings import settings
+
+logger = logging.getLogger(__name__)
+
+# Use database URL from settings
+DATABASE_URL = settings.database_url
 
 # Configure engine based on database type
 if DATABASE_URL.startswith("postgresql"):
@@ -57,22 +62,30 @@ def init_db():
     from alembic.config import Config
     from alembic import command
     import os
-    
+
     try:
         # Get the directory of this file
         current_dir = os.path.dirname(os.path.abspath(__file__))
         alembic_dir = os.path.join(current_dir, 'alembic')
-        
+
         # Create Alembic config
         alembic_cfg = Config()
         alembic_cfg.set_main_option('script_location', alembic_dir)
         alembic_cfg.set_main_option('sqlalchemy.url', DATABASE_URL)
-        
+
         # Run migrations
         command.upgrade(alembic_cfg, 'head')
-        print("Database migrations completed successfully")
+        logger.info("Database migrations completed successfully")
+
     except Exception as e:
-        print(f"Migration failed: {e}")
-        # Fallback to create_all if migrations fail
-        Base.metadata.create_all(bind=engine)
-        print("Fallback: Created tables using create_all")
+        error_msg = f"Database migration failed: {e}"
+
+        if settings.is_production:
+            # In production, fail hard - don't create tables manually
+            logger.error(f"{error_msg} - Failing in production (no fallback to create_all)")
+            raise RuntimeError(f"Database migration failed in production: {e}")
+        else:
+            # In development/test, fallback to create_all for convenience
+            logger.warning(f"{error_msg} - Using create_all fallback in {settings.environment}")
+            Base.metadata.create_all(bind=engine)
+            logger.info("Fallback: Created tables using create_all")

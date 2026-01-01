@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import date, datetime
 
-import csv
+from contextlib import asynccontextmanager
 import io
 import json
 import math
@@ -21,8 +21,8 @@ from fastapi import FastAPI, Depends, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, Response
-from pydantic import BaseModel, Field, validator
-from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import get_db, init_db, engine
@@ -43,6 +43,7 @@ from models import (
     Plan,
     MoveInChecklist as MoveInChecklistModel,
 )
+from settings import settings
 
 from auth import (
     hash_password,
@@ -50,6 +51,7 @@ from auth import (
     create_access_token,
     get_current_user,
     require_capability,
+    get_org_plan,
 )
 
 import stripe
@@ -82,22 +84,60 @@ def add_auth_dependency(app):
 BASE_DIR = Path(__file__).resolve().parent
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager with production safety checks."""
+    # CRITICAL: Validate settings BEFORE any other initialization
+    # This ensures the app fails fast on startup if configuration is invalid
+    try:
+        # Force settings validation by accessing properties
+        _ = settings.jwt_secret  # Triggers JWT_SECRET validation
+        _ = settings.database_url  # Triggers DATABASE_URL validation
+        _ = settings.environment  # Triggers ENVIRONMENT validation
+
+        logger.info(f"✅ Environment validation passed: {settings.environment}")
+
+    except ValueError as e:
+        # Fail fast with clear error message for Railway logs
+        error_msg = f"❌ CRITICAL CONFIGURATION ERROR: {e}"
+        logger.error(error_msg)
+        print(error_msg, flush=True)  # Ensure it appears in Railway logs
+        raise RuntimeError(error_msg) from e
+
+    # Initialize database (runs migrations)
+    try:
+        init_db()
+        if settings.is_production:
+            logger.info("✅ Database schema verified via Alembic (production)")
+        else:
+            logger.info(f"✅ Database initialized ({settings.environment})")
+    except Exception as e:
+        error_msg = f"❌ DATABASE INITIALIZATION FAILED: {e}"
+        logger.error(error_msg)
+        print(error_msg, flush=True)
+        raise RuntimeError(error_msg) from e
+
+    yield
+    # Shutdown (if needed in the future)
+
+
 app = FastAPI(
     title="INDEX Property Management API",
     version="1.0.0",
     description="AI-powered property management system with tenant screening, maintenance routing, rent collection, and lease renewal optimization.",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url="/api/docs" if settings.is_development else None,
+    redoc_url="/api/redoc" if settings.is_development else None,
+    openapi_url="/api/openapi.json" if settings.is_development else None,
+    lifespan=lifespan,
 )
 
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-# Configure structured logging
+# Configure structured logging with request ID
 logging.basicConfig(
     level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
+    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "request_id": "%(request_id)s", "message": "%(message)s"}',
     datefmt="%Y-%m-%dT%H:%M:%S"
 )
 
@@ -109,6 +149,30 @@ class RequestIdFilter(logging.Filter):
 
 logger = logging.getLogger(__name__)
 logger.addFilter(RequestIdFilter())
+
+# Request ID middleware
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Add request ID to all requests for correlation."""
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    # Add to logger context
+    logging_context = {"request_id": request_id}
+    logger_with_id = logging.LoggerAdapter(logger, logging_context)
+
+    # Log request start
+    logger_with_id.info(f"→ {request.method} {request.url.path}")
+
+    try:
+        response = await call_next(request)
+        # Log request completion
+        logger_with_id.info(f"← {request.method} {request.url.path} {response.status_code}")
+        return response
+    except Exception as e:
+        # Log errors with request ID
+        logger_with_id.error(f"💥 {request.method} {request.url.path} failed: {str(e)}")
+        raise
 
 class MeResponse(BaseModel):
     user_id: int
@@ -171,19 +235,22 @@ async def add_security_headers(request: Request, call_next):
 
 add_auth_dependency(app)
 
-# Configure CORS with environment variable
-cors_origins = os.getenv("CORS_ORIGINS", "")
-if cors_origins.strip() == "*":
-    allow_origins = ["*"]
-else:
-    allow_origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+# Configure CORS with settings
+allow_origins = settings.get_cors_origins_for_fastapi()
+allow_credentials = settings.cors_allow_credentials
+
+# Log CORS configuration (without secrets)
+logger.info(
+    f"CORS configured: allow_origins={allow_origins}, "
+    f"allow_credentials={allow_credentials}, environment={settings.environment}"
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
 )
 
 # ============================================================================
@@ -304,12 +371,6 @@ async def general_exception_handler(request: Request, exc: Exception):
 # @app.get("/properties.html")
 # def properties_page():
 #     return FileResponse(BASE_DIR / "properties.html")
-
-
-@app.on_event("startup")
-def on_startup() -> None:
-    # Initialize database tables via Alembic migrations
-    init_db()
 
 
 # ============================================================================
@@ -525,12 +586,21 @@ def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
 
 
 @app.get("/api/health")
-def health():
-    """Health check endpoint for Railway deployment."""
+def health(db: Session = Depends(get_db)) -> dict:
+    """
+    Health check endpoint. Returns basic application status and database connectivity.
+    """
+    db_status = "connected"
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    
     return {
-        "status": "ok",
-        "version": app.version,
-        "timestamp": datetime.utcnow().isoformat()
+        "status": "healthy",
+        "version": "1.0.0",
+        "database": db_status,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -660,7 +730,8 @@ class RentCollectionRequest(BaseModel):
     amount: float = Field(..., gt=0)
     due_date: date
 
-    @validator('due_date', pre=True)
+    @field_validator('due_date', mode='before')
+    @classmethod
     def parse_due_date(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v).date()
@@ -703,7 +774,8 @@ class NotificationRequest(BaseModel):
     message: str
     scheduled_for: datetime
 
-    @validator('scheduled_for', pre=True)
+    @field_validator('scheduled_for', mode='before')
+    @classmethod
     def parse_scheduled_for(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v)
@@ -729,7 +801,8 @@ class LeaseRequest(BaseModel):
     rent_amount: float
     deposit: float
 
-    @validator('start_date', 'end_date', pre=True)
+    @field_validator('start_date', 'end_date', mode='before')
+    @classmethod
     def parse_dates(cls, v):
         if isinstance(v, str):
             return datetime.fromisoformat(v).date()
@@ -813,25 +886,6 @@ class MoveInChecklistResponse(BaseModel):
         }
 
 
-@app.get("/api/health")
-def health(db: Session = Depends(get_db)) -> dict:
-    """
-    Health check endpoint. Returns basic application status and database connectivity.
-    """
-    db_status = "connected"
-    try:
-        db.execute("SELECT 1")
-    except Exception as e:
-        db_status = f"error: {str(e)}"
-    
-    return {
-        "status": "ok",
-        "version": "1.0.0",
-        "database": db_status,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-
 @app.post("/api/admin/process-billing-retries")
 def process_billing_retries(
     db: Session = Depends(get_db)
@@ -876,6 +930,35 @@ def export_tenant_screenings(
     return Response(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=tenant_screenings.csv"})
 
 
+@app.get("/api/tenant-screenings")
+def get_tenant_screenings(
+    user_data=Depends(require_capability("tenant_screening")),
+    db: Session = Depends(get_db),
+):
+    """Get all tenant screenings for the user's organization."""
+    user, org_id = user_data
+    screenings = (
+        db.query(TenantScreeningModel)
+        .filter(TenantScreeningModel.org_id == org_id)
+        .order_by(TenantScreeningModel.created_at.desc())
+        .all()
+    )
+    
+    return [
+        {
+            "id": s.id,
+            "name": s.name,
+            "income": s.income,
+            "credit_score": s.credit_score,
+            "evictions": s.evictions,
+            "risk_score": s.risk_score,
+            "risk_level": s.risk_level,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        }
+        for s in screenings
+    ]
+
+
 @app.post("/api/tenant-screening", response_model=ScreeningResponse)
 def tenant_screening(
     payload: ScreeningRequest,
@@ -884,6 +967,26 @@ def tenant_screening(
 ) -> ScreeningResponse:
     """Screen a tenant and calculate risk score."""
     user, org_id = user_data
+    
+    # Check screening limits based on plan
+    plan = get_org_plan(db, org_id)
+    if plan == "core":
+        # Free plan: 5 screenings per month
+        from datetime import datetime, timezone, timedelta
+        month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        monthly_count = db.query(TenantScreeningModel).filter(
+            TenantScreeningModel.org_id == org_id,
+            TenantScreeningModel.created_at >= month_start
+        ).count()
+        
+        if monthly_count >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Free plan is limited to 5 tenant screenings per month. Upgrade to screen more tenants."
+            )
+    # growth and premium plans have unlimited screenings
+
+    from datetime import datetime, timezone
     
     credit_factor = (payload.credit_score - 300) / 550
     income_factor = min(payload.income / 100000, 1)
@@ -1724,6 +1827,17 @@ def add_property(
     """Add a new property."""
     user, org_id = user_data
     
+    # Check property limits based on plan
+    plan = get_org_plan(db, org_id)
+    current_count = db.query(PropertyModel).filter(PropertyModel.org_id == org_id).count()
+    
+    if plan == "core" and current_count >= 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Free plan is limited to 1 property. Upgrade to add more properties."
+        )
+    # growth and premium plans have unlimited properties
+    
     created_at = datetime.now(timezone.utc)
     
     prop = PropertyModel(
@@ -2101,7 +2215,9 @@ def pulse(
     from sqlalchemy import func
     
     # Check for SLA breaches and escalate if needed (only for Growth plan and above)
-    if user.organization.plan in ["growth", "premium"]:
+    from auth import get_org_plan
+    plan = get_org_plan(db, org_id)
+    if plan in ["growth", "premium"]:
         now = datetime.now(timezone.utc)
         breached_requests = db.query(MaintenanceRequestModel).filter(
             MaintenanceRequestModel.org_id == org_id,
@@ -2329,6 +2445,16 @@ async def stripe_webhook(
             db.commit()
     
     return {"status": "ok"}
+
+
+@app.get("/api/enterprise/analytics")
+def enterprise_analytics(
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+    _=Depends(require_capability("advanced_analytics")),
+):
+    """Enterprise-only analytics endpoint."""
+    return {"message": "Enterprise analytics data"}
 
 
 app.mount("/", StaticFiles(directory=BASE_DIR, html=True), name="static")

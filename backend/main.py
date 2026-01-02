@@ -16,6 +16,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List, Tuple
+from collections import defaultdict
+import time
 
 from fastapi import FastAPI, Depends, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,6 +47,32 @@ from models import (
 )
 from settings import settings
 
+# Rate limiting configuration
+AUTH_RATE_LIMIT_PER_MINUTE = int(os.getenv("AUTH_RATE_LIMIT_PER_MINUTE", "10"))
+
+# In-memory rate limiter (sliding window)
+class RateLimiter:
+    def __init__(self):
+        self.requests = defaultdict(list)  # IP -> list of timestamps
+    
+    def is_allowed(self, ip: str, max_requests: int = AUTH_RATE_LIMIT_PER_MINUTE, window_seconds: int = 60) -> bool:
+        """Check if request is allowed under rate limit."""
+        now = time.time()
+        window_start = now - window_seconds
+        
+        # Clean old requests
+        self.requests[ip] = [timestamp for timestamp in self.requests[ip] if timestamp > window_start]
+        
+        # Check if under limit
+        if len(self.requests[ip]) < max_requests:
+            self.requests[ip].append(now)
+            return True
+        
+        return False
+
+# Global rate limiter instance
+rate_limiter = RateLimiter()
+
 from auth import (
     hash_password,
     verify_password,
@@ -54,6 +82,7 @@ from auth import (
     require_plan,
     has_feature,
     get_org_plan,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 
 import stripe
@@ -484,14 +513,22 @@ class AuthResponse(BaseModel):
 
 
 @app.post("/api/auth/register", response_model=AuthResponse)
-def register(request: RegisterRequest, db: Session = Depends(get_db)):
+def register(request: RegisterRequest, http_request: Request, response: Response, db: Session = Depends(get_db)):
     """Register a new user with a new organization."""
     from datetime import datetime, timezone, timedelta
+    from fastapi import HTTPException, status
+    
+    # Rate limiting check
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    if not rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many registration attempts. Please try again later."
+        )
     
     # Check if user already exists
     existing_user = db.query(User).filter(User.email == request.email).first()
     if existing_user:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already exists"
@@ -536,6 +573,17 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         data={"sub": str(user.id), "org_id": user.org_id, "email": user.email}
     )
     
+    # Set HttpOnly cookie for production-safe authentication
+    max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.is_production,
+        max_age=max_age
+    )
+    
     return AuthResponse(
         access_token=access_token,
         token_type="bearer",
@@ -547,9 +595,17 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/login", response_model=AuthResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
+def login(request: LoginRequest, http_request: Request, response: Response, db: Session = Depends(get_db)):
     """Login with email and password."""
     from fastapi import HTTPException, status
+    
+    # Rate limiting check
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    if not rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later."
+        )
     
     # Find user
     user = db.query(User).filter(User.email == request.email).first()
@@ -562,6 +618,17 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     # Generate token
     access_token = create_access_token(
         data={"sub": str(user.id), "org_id": user.org_id, "email": user.email}
+    )
+    
+    # Set HttpOnly cookie for production-safe authentication
+    max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.is_production,
+        max_age=max_age
     )
     
     return AuthResponse(
@@ -2617,15 +2684,14 @@ async def auth_page():
 # Auth detection helper
 def is_authenticated(request: Request, db: Session) -> bool:
     """Check if request is authenticated using existing JWT auth system."""
-    # First check Authorization header
-    auth_header = request.headers.get("Authorization")
-    token = None
+    # First check for token in HttpOnly cookie (preferred for security)
+    token = request.cookies.get("access_token")
     
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:]  # Remove "Bearer " prefix
-    else:
-        # Check for token in cookies
-        token = request.cookies.get("access_token")
+    # Fall back to Authorization header if no cookie
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Remove "Bearer " prefix
     
     if token:
         try:

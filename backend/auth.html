@@ -182,9 +182,7 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Login failed');
-        localStorage.setItem('access_token', data.access_token);
-        // Also set cookie for server-side authentication checks
-        document.cookie = `access_token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
+        // Token is now stored securely in HttpOnly cookie by the server
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTo = urlParams.get('redirect') || '/';
         window.location.href = redirectTo;
@@ -206,9 +204,7 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Registration failed');
-        localStorage.setItem('access_token', data.access_token);
-        // Also set cookie for server-side authentication checks
-        document.cookie = `access_token=${data.access_token}; path=/; max-age=1800; SameSite=Lax`;
+        // Token is now stored securely in HttpOnly cookie by the server
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTo = urlParams.get('redirect') || '/';
         window.location.href = redirectTo;

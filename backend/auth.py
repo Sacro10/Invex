@@ -76,16 +76,20 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    # Get token from Authorization header
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid authorization header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # First check for token in HttpOnly cookie (preferred for security)
+    token = request.cookies.get("access_token")
     
-    token = auth_header[7:]  # Remove "Bearer " prefix
+    # Fall back to Authorization header if no cookie
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Missing or invalid authorization header",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        token = auth_header[7:]  # Remove "Bearer " prefix
+    
     payload = verify_token(token)
     
     user_id_str: str = payload.get("sub")

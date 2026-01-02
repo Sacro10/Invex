@@ -159,13 +159,8 @@
       window.API_BASE = "";
     }
     
-    // Check if user is already authenticated and redirect to dashboard or intended page
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirectTo = urlParams.get('redirect') || '/';
-      window.location.href = redirectTo;
-    }
+    // Note: We don't check localStorage here because if user was authenticated,
+    // they wouldn't be served this auth.html page by the backend
     
     const API_BASE = window.API_BASE || "";
     const loginTab = document.getElementById('loginTab');

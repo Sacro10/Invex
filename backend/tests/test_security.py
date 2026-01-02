@@ -125,3 +125,32 @@ class TestAuthSecurity:
         with patch('auth.SECRET_KEY', 'different-secret'):
             with pytest.raises(Exception):  # Should raise JWTError
                 verify_token(token)
+
+
+class TestFrontendUX:
+    """Test frontend UX routing and authentication behavior."""
+
+    def test_homepage_public_access(self, client):
+        """GET "/" returns 200 and contains a known string from index.html."""
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "INDEX" in response.text  # Known string from index.html title
+
+    def test_protected_page_unauthenticated_serves_auth(self, client):
+        """GET "/account.html" without auth returns 200 and contains auth.html content."""
+        response = client.get("/account.html")
+        assert response.status_code == 200
+        assert "Login" in response.text or "Sign Up" in response.text  # Known strings from auth.html
+
+    def test_protected_page_authenticated_serves_page(self, client, auth_headers):
+        """GET "/account.html" with valid auth returns 200 and contains account.html content."""
+        response = client.get("/account.html", headers=auth_headers)
+        assert response.status_code == 200
+        assert "Account Details" in response.text  # Known string from account.html title
+
+    def test_auth_page_contains_redirect_logic(self, client):
+        """auth.html contains JavaScript redirect logic to "/" after login/signup."""
+        response = client.get("/auth.html")
+        assert response.status_code == 200
+        assert 'window.location.href = redirectTo' in response.text
+        assert 'const redirectTo = urlParams.get(\'redirect\') || \'/\';' in response.text

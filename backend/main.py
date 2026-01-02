@@ -2614,10 +2614,9 @@ async def auth_page():
     raise HTTPException(status_code=404, detail="Page not found")
 
 
-# Helper function for serving protected HTML pages
-async def serve_protected_html(filename: str, request: Request, db: Session = Depends(get_db)):
-    """Serve protected HTML pages - return auth.html if not authenticated."""
-    # Check if user is authenticated
+# Auth detection helper
+def is_authenticated(request: Request, db: Session) -> bool:
+    """Check if request is authenticated using existing JWT auth system."""
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]  # Remove "Bearer " prefix
@@ -2629,15 +2628,20 @@ async def serve_protected_html(filename: str, request: Request, db: Session = De
             if user_id_str is not None and org_id is not None:
                 user_id = int(user_id_str)
                 user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
-                if user is not None:
-                    # User is authenticated, serve the requested file
-                    file_path = BASE_DIR / filename
-                    if file_path.exists():
-                        return FileResponse(file_path, media_type="text/html")
+                return user is not None
         except Exception:
-            pass  # Fall through to serving auth.html
-    
-    # Not authenticated or auth failed, serve auth.html
+            pass
+    return False
+
+
+# Protected page serving helper
+async def serve_protected_page(request: Request, filename: str, db: Session):
+    """Serve protected HTML page if authenticated, otherwise serve auth.html."""
+    if is_authenticated(request, db):
+        file_path = BASE_DIR / filename
+        if file_path.exists():
+            return FileResponse(file_path, media_type="text/html")
+    # Not authenticated - serve auth.html
     auth_path = BASE_DIR / "auth.html"
     if auth_path.exists():
         return FileResponse(auth_path, media_type="text/html")
@@ -2647,55 +2651,55 @@ async def serve_protected_html(filename: str, request: Request, db: Session = De
 # Protected HTML page routes - all return auth.html if not authenticated
 @app.get("/account.html", response_class=HTMLResponse)
 async def account_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("account.html", request, db)
+    return await serve_protected_page(request, "account.html", db)
 
 @app.get("/accounting.html", response_class=HTMLResponse)
 async def accounting_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("accounting.html", request, db)
+    return await serve_protected_page(request, "accounting.html", db)
 
 @app.get("/billing-success.html", response_class=HTMLResponse)
 async def billing_success_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("billing-success.html", request, db)
+    return await serve_protected_page(request, "billing-success.html", db)
 
 @app.get("/communication.html", response_class=HTMLResponse)
 async def communication_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("communication.html", request, db)
+    return await serve_protected_page(request, "communication.html", db)
 
 @app.get("/leases.html", response_class=HTMLResponse)
 async def leases_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("leases.html", request, db)
+    return await serve_protected_page(request, "leases.html", db)
 
 @app.get("/lease-renewal.html", response_class=HTMLResponse)
 async def lease_renewal_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("lease-renewal.html", request, db)
+    return await serve_protected_page(request, "lease-renewal.html", db)
 
 @app.get("/maintenance.html", response_class=HTMLResponse)
 async def maintenance_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("maintenance.html", request, db)
+    return await serve_protected_page(request, "maintenance.html", db)
 
 @app.get("/payment.html", response_class=HTMLResponse)
 async def payment_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("payment.html", request, db)
+    return await serve_protected_page(request, "payment.html", db)
 
 @app.get("/privacy.html", response_class=HTMLResponse)
 async def privacy_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("privacy.html", request, db)
+    return await serve_protected_page(request, "privacy.html", db)
 
 @app.get("/properties.html", response_class=HTMLResponse)
 async def properties_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("properties.html", request, db)
+    return await serve_protected_page(request, "properties.html", db)
 
 @app.get("/tenant-screening.html", response_class=HTMLResponse)
 async def tenant_screening_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("tenant-screening.html", request, db)
+    return await serve_protected_page(request, "tenant-screening.html", db)
 
 @app.get("/terms.html", response_class=HTMLResponse)
 async def terms_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("terms.html", request, db)
+    return await serve_protected_page(request, "terms.html", db)
 
 @app.get("/vendors.html", response_class=HTMLResponse)
 async def vendors_page(request: Request, db: Session = Depends(get_db)):
-    return await serve_protected_html("vendors.html", request, db)
+    return await serve_protected_page(request, "vendors.html", db)
 
 
 # Catch-all route for unknown frontend paths
@@ -2733,25 +2737,7 @@ async def frontend_fallback(path: str, request: Request, db: Session = Depends(g
     
     # Handle HTML files or extensionless paths
     if path.endswith(".html") or "." not in path:
-        # Check authentication
-        auth_header = request.headers.get("Authorization")
-        is_authenticated = False
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            try:
-                from auth import verify_token
-                payload = verify_token(token)
-                user_id_str: str = payload.get("sub")
-                org_id: int = payload.get("org_id")
-                if user_id_str is not None and org_id is not None:
-                    user_id = int(user_id_str)
-                    user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
-                    if user is not None:
-                        is_authenticated = True
-            except Exception:
-                pass
-        
-        if is_authenticated:
+        if is_authenticated(request, db):
             # Try to serve the corresponding HTML file
             html_filename = path if path.endswith(".html") else f"{path}.html"
             file_path = BASE_DIR / html_filename

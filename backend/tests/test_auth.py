@@ -134,6 +134,40 @@ def test_protected_page_with_auth(client: pytest.fixture, test_user: pytest.fixt
     assert "maintenance" in response.text.lower() or "Maintenance" in response.text
 
 
+def test_catch_all_unknown_api_route(client: pytest.fixture):
+    """Test that unknown API routes return 404."""
+    response = client.get("/api/unknown-endpoint")
+    
+    assert response.status_code == 404
+    assert "API endpoint not found" in response.json()["detail"]
+
+
+def test_catch_all_api_health_still_works(client: pytest.fixture):
+    """Test that existing API routes still work through catch-all."""
+    response = client.get("/api/health")
+    
+    assert response.status_code == 200
+    assert "status" in response.json()
+
+
+def test_catch_all_unknown_frontend_path_unauthenticated(client: pytest.fixture):
+    """Test that unknown frontend paths return auth.html when not authenticated."""
+    response = client.get("/some-protected-route")
+    
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    # Should contain auth.html content
+    assert "Login" in response.text or "Sign Up" in response.text
+
+
+def test_catch_all_unknown_static_file(client: pytest.fixture):
+    """Test that unknown static files return 404."""
+    response = client.get("/unknown-file.css")
+    
+    assert response.status_code == 404
+    assert "Static file not found" in response.json()["detail"]
+
+
 def test_public_static_assets_accessible(client: pytest.fixture):
     """Test that public static assets required by index.html are accessible."""
     # Test CSS

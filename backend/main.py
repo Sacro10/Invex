@@ -2613,3 +2613,79 @@ async def terms_page(request: Request, db: Session = Depends(get_db)):
 @app.get("/vendors.html", response_class=HTMLResponse)
 async def vendors_page(request: Request, db: Session = Depends(get_db)):
     return await serve_protected_html("vendors.html", request, db)
+
+
+# Catch-all route for unknown frontend paths
+@app.get("/{path:path}")
+async def frontend_fallback(path: str, request: Request, db: Session = Depends(get_db)):
+    """Handle unknown frontend paths with appropriate fallbacks."""
+    # Don't interfere with API routes
+    if path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # Root path handled by existing route
+    if path in ("", "/"):
+        # This shouldn't happen since the root route is defined above, but just in case
+        index_path = BASE_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path, media_type="text/html")
+        raise HTTPException(status_code=404, detail="Home page not found")
+    
+    # Handle static files
+    static_extensions = (".css", ".js", ".png", ".jpg", ".jpeg", ".webp", ".ico")
+    if path.endswith(static_extensions):
+        # Only serve static files from assets directory or known public files
+        file_path = BASE_DIR / path
+        # Check if it's in assets directory or is a known public file
+        if (path.startswith("assets/") and file_path.exists()) or file_path.exists():
+            # Additional safety check - only serve files that are actually in our directory
+            try:
+                # Ensure the path doesn't contain .. or other traversal attempts
+                resolved_path = (BASE_DIR / path).resolve()
+                if resolved_path.is_relative_to(BASE_DIR) and resolved_path.exists():
+                    return FileResponse(resolved_path)
+            except (ValueError, OSError):
+                pass
+        raise HTTPException(status_code=404, detail="Static file not found")
+    
+    # Handle HTML files or extensionless paths
+    if path.endswith(".html") or "." not in path:
+        # Check authentication
+        auth_header = request.headers.get("Authorization")
+        is_authenticated = False
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            try:
+                from auth import verify_token
+                payload = verify_token(token)
+                user_id_str: str = payload.get("sub")
+                org_id: int = payload.get("org_id")
+                if user_id_str is not None and org_id is not None:
+                    user_id = int(user_id_str)
+                    user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
+                    if user is not None:
+                        is_authenticated = True
+            except Exception:
+                pass
+        
+        if is_authenticated:
+            # Try to serve the corresponding HTML file
+            html_filename = path if path.endswith(".html") else f"{path}.html"
+            file_path = BASE_DIR / html_filename
+            if file_path.exists():
+                return FileResponse(file_path, media_type="text/html")
+            else:
+                # Fallback to a safe default page (account.html if it exists)
+                fallback_path = BASE_DIR / "account.html"
+                if fallback_path.exists():
+                    return FileResponse(fallback_path, media_type="text/html")
+                raise HTTPException(status_code=404, detail="Page not found")
+        else:
+            # Not authenticated - serve auth.html
+            auth_path = BASE_DIR / "auth.html"
+            if auth_path.exists():
+                return FileResponse(auth_path, media_type="text/html")
+            raise HTTPException(status_code=404, detail="Auth page not found")
+    
+    # For any other paths, return 404
+    raise HTTPException(status_code=404, detail="Page not found")

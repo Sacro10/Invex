@@ -105,12 +105,33 @@ def test_homepage_public_access(client: pytest.fixture):
     assert "INDEX" in response.text  # Check for content from index.html
 
 
-def test_protected_page_requires_auth(client: pytest.fixture):
-    """Test that protected pages require authentication and return 401."""
+def test_protected_page_fallback_to_auth(client: pytest.fixture):
+    """Test that protected pages return auth.html content when not authenticated."""
     response = client.get("/maintenance.html")
 
-    assert response.status_code == 401
-    assert "missing or invalid authorization header" in response.json()["detail"].lower()
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    # Check that it contains content from auth.html (like login form)
+    assert "Login" in response.text or "Sign Up" in response.text
+
+
+def test_protected_page_with_auth(client: pytest.fixture, test_user: pytest.fixture):
+    """Test that protected pages return the actual page content when authenticated."""
+    # First login to get token
+    login_response = client.post("/api/auth/login", json={
+        "email": "test@example.com",
+        "password": "password123"
+    })
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    
+    # Now access protected page with token
+    response = client.get("/maintenance.html", headers={"Authorization": f"Bearer {token}"})
+    
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    # Should contain content from maintenance.html, not auth.html
+    assert "maintenance" in response.text.lower() or "Maintenance" in response.text
 
 
 def test_public_static_assets_accessible(client: pytest.fixture):

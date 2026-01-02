@@ -2531,20 +2531,85 @@ async def auth_page():
     raise HTTPException(status_code=404, detail="Page not found")
 
 
-# Protected HTML pages (require authentication)
-@app.get("/{page}.html", response_class=HTMLResponse)
-async def protected_page(page: str, current_user: Tuple[User, int] = Depends(get_current_user)):
-    """Serve protected HTML pages with authentication."""
-    # List of protected pages (all HTML files except index.html and auth.html)
-    protected_pages = {
-        "payment", "terms", "accounting", "account", "properties",
-        "communication", "billing-success", "leases", "maintenance",
-        "lease-renewal", "tenant-screening", "privacy", "vendors"
-    }
+# Helper function for serving protected HTML pages
+async def serve_protected_html(filename: str, request: Request, db: Session = Depends(get_db)):
+    """Serve protected HTML pages - return auth.html if not authenticated."""
+    # Check if user is authenticated
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]  # Remove "Bearer " prefix
+        try:
+            from auth import verify_token
+            payload = verify_token(token)
+            user_id_str: str = payload.get("sub")
+            org_id: int = payload.get("org_id")
+            if user_id_str is not None and org_id is not None:
+                user_id = int(user_id_str)
+                user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
+                if user is not None:
+                    # User is authenticated, serve the requested file
+                    file_path = BASE_DIR / filename
+                    if file_path.exists():
+                        return FileResponse(file_path, media_type="text/html")
+        except Exception:
+            pass  # Fall through to serving auth.html
+    
+    # Not authenticated or auth failed, serve auth.html
+    auth_path = BASE_DIR / "auth.html"
+    if auth_path.exists():
+        return FileResponse(auth_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Auth page not found")
 
-    if page in protected_pages:
-        file_path = BASE_DIR / f"{page}.html"
-        if file_path.exists():
-            return FileResponse(file_path, media_type="text/html")
 
-    raise HTTPException(status_code=404, detail="Page not found")
+# Protected HTML page routes - all return auth.html if not authenticated
+@app.get("/account.html", response_class=HTMLResponse)
+async def account_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("account.html", request, db)
+
+@app.get("/accounting.html", response_class=HTMLResponse)
+async def accounting_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("accounting.html", request, db)
+
+@app.get("/billing-success.html", response_class=HTMLResponse)
+async def billing_success_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("billing-success.html", request, db)
+
+@app.get("/communication.html", response_class=HTMLResponse)
+async def communication_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("communication.html", request, db)
+
+@app.get("/leases.html", response_class=HTMLResponse)
+async def leases_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("leases.html", request, db)
+
+@app.get("/lease-renewal.html", response_class=HTMLResponse)
+async def lease_renewal_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("lease-renewal.html", request, db)
+
+@app.get("/maintenance.html", response_class=HTMLResponse)
+async def maintenance_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("maintenance.html", request, db)
+
+@app.get("/payment.html", response_class=HTMLResponse)
+async def payment_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("payment.html", request, db)
+
+@app.get("/privacy.html", response_class=HTMLResponse)
+async def privacy_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("privacy.html", request, db)
+
+@app.get("/properties.html", response_class=HTMLResponse)
+async def properties_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("properties.html", request, db)
+
+@app.get("/tenant-screening.html", response_class=HTMLResponse)
+async def tenant_screening_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("tenant-screening.html", request, db)
+
+@app.get("/terms.html", response_class=HTMLResponse)
+async def terms_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("terms.html", request, db)
+
+@app.get("/vendors.html", response_class=HTMLResponse)
+async def vendors_page(request: Request, db: Session = Depends(get_db)):
+    return await serve_protected_html("vendors.html", request, db)

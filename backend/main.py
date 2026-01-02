@@ -189,6 +189,7 @@ class MeResponse(BaseModel):
     email: str
     role: str
     organization_name: str
+    plan: str
     created_at: datetime
 
 # Security headers middleware
@@ -579,12 +580,22 @@ def get_me(user_data=Depends(get_current_user), db: Session = Depends(get_db)):
     org = db.query(Organization).filter(Organization.id == org_id).first()
     if not org:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+    
+    # Get user's current plan
+    subscription = db.query(SubscriptionModel).filter(
+        SubscriptionModel.org_id == org_id,
+        SubscriptionModel.status == "active"
+    ).first()
+    
+    plan = subscription.plan if subscription else "core"  # Default to core if no subscription found
+    
     return MeResponse(
         user_id=user.id,
         org_id=org.id,
         email=user.email,
         role=user.role,
         organization_name=org.name,
+        plan=plan,
         created_at=user.created_at
     )
 
@@ -2517,12 +2528,14 @@ def enterprise_analytics(
 
 
 # Public home page route (no authentication required)
-@app.get("/", response_class=HTMLResponse)
-async def home_page():
+@app.get("/")
+def home_page():
     """Serve the public home page without authentication."""
     index_path = BASE_DIR / "index.html"
     if index_path.exists():
-        return FileResponse(index_path, media_type="text/html")
+        with open(index_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return HTMLResponse(content)
     raise HTTPException(status_code=404, detail="Home page not found")
 
 

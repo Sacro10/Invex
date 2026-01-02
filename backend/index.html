@@ -155,6 +155,51 @@
           </div>
         </section>
 
+        <!-- Dashboard section for authenticated users -->
+        <section class="dashboard reveal" id="dashboard" style="display: none;">
+          <div class="section-title">
+            <p class="eyebrow">Welcome back</p>
+            <h2>Your Property Management Dashboard</h2>
+          </div>
+          <div class="dashboard-grid">
+            <div class="dashboard-card">
+              <h3>Quick Actions</h3>
+              <div class="dashboard-actions">
+                <a href="tenant-screening.html" class="dashboard-action">
+                  <span class="action-icon">🔍</span>
+                  <span>Screen Tenant</span>
+                </a>
+                <a href="maintenance.html" class="dashboard-action">
+                  <span class="action-icon">🔧</span>
+                  <span>Maintenance Request</span>
+                </a>
+                <a href="properties.html" class="dashboard-action">
+                  <span class="action-icon">🏠</span>
+                  <span>Manage Properties</span>
+                </a>
+                <a href="leases.html" class="dashboard-action">
+                  <span class="action-icon">📄</span>
+                  <span>View Leases</span>
+                </a>
+              </div>
+            </div>
+            <div class="dashboard-card">
+              <h3>Account Overview</h3>
+              <div class="account-info">
+                <p><strong>Plan:</strong> <span id="user-plan">Loading...</span></p>
+                <p><strong>Properties:</strong> <span id="property-count">Loading...</span></p>
+                <a href="account.html" class="account-link">Manage Account & Billing</a>
+              </div>
+            </div>
+            <div class="dashboard-card">
+              <h3>Recent Activity</h3>
+              <div id="recent-activity">
+                <p>Loading recent activity...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="problem reveal" id="problem">
           <div class="section-title">
             <p class="eyebrow">Why now</p>
@@ -429,7 +474,25 @@
         'tenant-screening.html', 'maintenance.html', 'accounting.html', 'lease-renewal.html',
         'leases.html', 'communication.html', 'properties.html', 'vendors.html', 'account.html'
       ];
+      
       document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('access_token');
+        const dashboardSection = document.getElementById('dashboard');
+        const heroSection = document.querySelector('.hero');
+        
+        if (token) {
+          // User is authenticated - show dashboard, hide some marketing content
+          dashboardSection.style.display = 'grid';
+          // Optionally hide hero section or modify it for authenticated users
+          // heroSection.style.display = 'none';
+          
+          // Load user data
+          loadUserDashboard();
+        } else {
+          // User is not authenticated - hide dashboard
+          dashboardSection.style.display = 'none';
+        }
+        
         // If on index.html, only gate if user tries to access app features
         document.querySelectorAll('nav a').forEach(link => {
           const href = link.getAttribute('href');
@@ -444,6 +507,58 @@
           }
         });
       });
+      
+      async function loadUserDashboard() {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        
+        try {
+          // Load user plan info
+          const profileResponse = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (profileResponse.ok) {
+            const profile = await profileResponse.json();
+            // Note: We'll need to add plan info to the /api/auth/me endpoint
+            document.getElementById('user-plan').textContent = 'Core Plan'; // Default for now
+          }
+          
+          // Load properties count
+          const propertiesResponse = await fetch('/api/properties', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (propertiesResponse.ok) {
+            const properties = await propertiesResponse.json();
+            document.getElementById('property-count').textContent = properties.length || '0';
+          }
+          
+          // Load recent activity (pulse data)
+          const pulseResponse = await fetch('/api/pulse', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (pulseResponse.ok) {
+            const pulse = await pulseResponse.json();
+            const activityDiv = document.getElementById('recent-activity');
+            if (pulse.timeline && pulse.timeline.length > 0) {
+              activityDiv.innerHTML = pulse.timeline.slice(0, 3).map(item => 
+                `<p><strong>${item.type}:</strong> ${item.description}</p>`
+              ).join('');
+            } else {
+              activityDiv.innerHTML = '<p>No recent activity</p>';
+            }
+          }
+          
+        } catch (error) {
+          console.error('Error loading dashboard data:', error);
+          // Show fallback content
+          document.getElementById('user-plan').textContent = 'Core Plan';
+          document.getElementById('property-count').textContent = '0';
+          document.getElementById('recent-activity').innerHTML = '<p>Unable to load activity</p>';
+        }
+      }
     </script>
     <script src="script.js"></script>
   </body>

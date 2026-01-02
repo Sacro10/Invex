@@ -163,7 +163,7 @@
     const token = localStorage.getItem('access_token');
     if (token) {
       const urlParams = new URLSearchParams(window.location.search);
-      const redirectTo = urlParams.get('redirect') || '/properties.html';
+      const redirectTo = urlParams.get('redirect') || '/';
       window.location.href = redirectTo;
     }
     
@@ -189,7 +189,7 @@
         if (!res.ok) throw new Error(data.detail || 'Login failed');
         localStorage.setItem('access_token', data.access_token);
         const urlParams = new URLSearchParams(window.location.search);
-        const redirectTo = urlParams.get('redirect') || '/properties.html';
+        const redirectTo = urlParams.get('redirect') || '/';
         window.location.href = redirectTo;
       } catch (err) {
         document.getElementById('loginError').textContent = err.message;
@@ -211,7 +211,7 @@
         if (!res.ok) throw new Error(data.detail || 'Registration failed');
         localStorage.setItem('access_token', data.access_token);
         const urlParams = new URLSearchParams(window.location.search);
-        const redirectTo = urlParams.get('redirect') || '/properties.html';
+        const redirectTo = urlParams.get('redirect') || '/';
         window.location.href = redirectTo;
       } catch (err) {
         document.getElementById('registerError').textContent = err.message;

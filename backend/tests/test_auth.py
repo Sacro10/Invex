@@ -94,3 +94,38 @@ def test_get_me_unauthenticated(client: pytest.fixture):
 
     assert response.status_code == 401
     assert "missing or invalid authorization header" in response.json()["detail"].lower()
+
+
+def test_homepage_public_access(client: pytest.fixture):
+    """Test that homepage (/) is publicly accessible without authentication."""
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
+    assert "INDEX" in response.text  # Check for content from index.html
+
+
+def test_protected_page_requires_auth(client: pytest.fixture):
+    """Test that protected pages require authentication and return 401."""
+    response = client.get("/maintenance.html")
+
+    assert response.status_code == 401
+    assert "missing or invalid authorization header" in response.json()["detail"].lower()
+
+
+def test_public_static_assets_accessible(client: pytest.fixture):
+    """Test that public static assets required by index.html are accessible."""
+    # Test CSS
+    response = client.get("/styles.css")
+    assert response.status_code == 200
+    assert "text/css" in response.headers.get("content-type", "")
+
+    # Test JavaScript
+    response = client.get("/script.js")
+    assert response.status_code == 200
+    assert "application/javascript" in response.headers.get("content-type", "")
+
+    # Test images
+    response = client.get("/pic1.jpeg")
+    assert response.status_code == 200
+    assert "image/jpeg" in response.headers.get("content-type", "")

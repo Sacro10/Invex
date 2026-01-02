@@ -15,7 +15,7 @@ import math
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from fastapi import FastAPI, Depends, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -2456,16 +2456,72 @@ async def home_page():
     raise HTTPException(status_code=404, detail="Home page not found")
 
 
-@app.get("/index.html", response_class=HTMLResponse)
-async def index_page():
-    """Serve the public index.html page without authentication."""
-    index_path = BASE_DIR / "index.html"
-    if index_path.exists():
-        return FileResponse(index_path, media_type="text/html")
-    raise HTTPException(status_code=404, detail="Index page not found")
+# Public static assets required by index.html
+@app.get("/styles.css")
+async def styles_css():
+    """Serve styles.css for the public homepage."""
+    file_path = BASE_DIR / "styles.css"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="text/css")
+    raise HTTPException(status_code=404, detail="Styles not found")
 
 
-# Protected HTML pages (require authentication)
+@app.get("/script.js")
+async def script_js():
+    """Serve script.js for the public homepage."""
+    file_path = BASE_DIR / "script.js"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="Script not found")
+
+
+# Public images required by index.html
+@app.get("/pic1.jpeg")
+async def pic1_jpeg():
+    """Serve pic1.jpeg for the public homepage."""
+    file_path = BASE_DIR / "pic1.jpeg"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
+@app.get("/pic 2.jpeg")
+async def pic2_jpeg():
+    """Serve pic 2.jpeg for the public homepage."""
+    file_path = BASE_DIR / "pic 2.jpeg"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
+@app.get("/pic 3.jpeg")
+async def pic3_jpeg():
+    """Serve pic 3.jpeg for the public homepage."""
+    file_path = BASE_DIR / "pic 3.jpeg"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
+@app.get("/pic4.jpeg")
+async def pic4_jpeg():
+    """Serve pic4.jpeg for the public homepage."""
+    file_path = BASE_DIR / "pic4.jpeg"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
+@app.get("/pic5.jpeg")
+async def pic5_jpeg():
+    """Serve pic5.jpeg for the public homepage."""
+    file_path = BASE_DIR / "pic5.jpeg"
+    if file_path.exists():
+        return FileResponse(file_path, media_type="image/jpeg")
+    raise HTTPException(status_code=404, detail="Image not found")
+
+
+# Auth page (public for login/signup)
 @app.get("/auth.html", response_class=HTMLResponse)
 async def auth_page():
     """Serve auth page (public for login/signup)."""
@@ -2474,8 +2530,10 @@ async def auth_page():
         return FileResponse(file_path, media_type="text/html")
     raise HTTPException(status_code=404, detail="Page not found")
 
+
+# Protected HTML pages (require authentication)
 @app.get("/{page}.html", response_class=HTMLResponse)
-async def protected_page(page: str, request: Request, db: Session = Depends(get_db)):
+async def protected_page(page: str, current_user: Tuple[User, int] = Depends(get_current_user)):
     """Serve protected HTML pages with authentication."""
     # List of protected pages (all HTML files except index.html and auth.html)
     protected_pages = {
@@ -2485,14 +2543,8 @@ async def protected_page(page: str, request: Request, db: Session = Depends(get_
     }
 
     if page in protected_pages:
-        # Authentication is checked client-side by JavaScript
-        # Serve the page - JavaScript will redirect to auth.html if no token
         file_path = BASE_DIR / f"{page}.html"
         if file_path.exists():
             return FileResponse(file_path, media_type="text/html")
 
     raise HTTPException(status_code=404, detail="Page not found")
-
-
-# Mount static files (CSS, JS, images, etc.) - these remain public
-app.mount("/", StaticFiles(directory=BASE_DIR, html=False), name="static")

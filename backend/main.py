@@ -2456,6 +2456,15 @@ async def home_page():
     raise HTTPException(status_code=404, detail="Home page not found")
 
 
+@app.get("/index.html", response_class=HTMLResponse)
+async def index_page():
+    """Serve the public index.html page without authentication."""
+    index_path = BASE_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Index page not found")
+
+
 # Protected HTML pages (require authentication)
 @app.get("/auth.html", response_class=HTMLResponse)
 async def auth_page():

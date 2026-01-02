@@ -11,6 +11,75 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spectral:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <style>
+      .account-table-container {
+        overflow-x: auto;
+        margin-top: 1rem;
+      }
+      
+      .account-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(15, 28, 34, 0.1);
+      }
+      
+      .account-table thead {
+        background: linear-gradient(135deg, var(--mint, #9fd4c7) 0%, #7bb8a8 100%);
+        color: var(--ink, #0f1c22);
+      }
+      
+      .account-table th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .account-table td {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(15, 28, 34, 0.1);
+        font-size: 0.95rem;
+      }
+      
+      .account-table tbody tr:hover {
+        background: rgba(159, 212, 199, 0.05);
+      }
+      
+      .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .status-badge.active {
+        background: var(--mint, #9fd4c7);
+        color: var(--ink, #0f1c22);
+      }
+      
+      .status-indicator {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        background: rgba(15, 28, 34, 0.1);
+        color: var(--ink, #0f1c22);
+      }
+      
+      .status-indicator.active {
+        background: var(--mint, #9fd4c7);
+        color: var(--ink, #0f1c22);
+      }
+    </style>
   </head>
   <body>
     <div class="page">
@@ -91,6 +160,43 @@
           </div>
 
           <div class="account-details">
+            <div class="account-card">
+              <h2>Account Overview</h2>
+              <div class="account-table-container">
+                <table class="account-table">
+                  <thead>
+                    <tr>
+                      <th>Metric</th>
+                      <th>Value</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Current Plan</td>
+                      <td id="table-plan-name">-</td>
+                      <td><span class="status-badge" id="table-plan-status">-</span></td>
+                    </tr>
+                    <tr>
+                      <td>Total Properties</td>
+                      <td id="table-property-count">-</td>
+                      <td><span class="status-indicator" id="table-property-status">Active</span></td>
+                    </tr>
+                    <tr>
+                      <td>Account Status</td>
+                      <td id="table-account-status">Active</td>
+                      <td><span class="status-indicator active">✓ Verified</span></td>
+                    </tr>
+                    <tr>
+                      <td>Member Since</td>
+                      <td id="table-member-since">-</td>
+                      <td><span class="status-indicator">Established</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             <div class="account-card">
               <h2>User Information</h2>
               <div id="user-info" class="info-grid">
@@ -194,6 +300,9 @@
           document.getElementById('org-name').textContent = userData.organization_name || 'N/A';
           document.getElementById('member-since').textContent = new Date(userData.created_at).toLocaleDateString();
 
+          // Populate table with account overview
+          document.getElementById('table-member-since').textContent = new Date(userData.created_at).toLocaleDateString();
+
           // Load subscription info
           const subRes = await fetch(`${API_BASE}/api/billing/subscription`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -204,11 +313,23 @@
             document.getElementById('plan-status').textContent = subData.status || 'Active';
             document.getElementById('billing-cycle').textContent = subData.interval || 'Monthly';
             document.getElementById('next-billing').textContent = subData.current_period_end ? new Date(subData.current_period_end * 1000).toLocaleDateString() : 'N/A';
+            
+            // Update table
+            document.getElementById('table-plan-name').textContent = subData.plan_name || 'Free';
+            const planStatusEl = document.getElementById('table-plan-status');
+            planStatusEl.textContent = subData.status || 'Active';
+            planStatusEl.classList.add('active');
           } else {
             document.getElementById('plan-name').textContent = 'Free';
             document.getElementById('plan-status').textContent = 'Active';
             document.getElementById('billing-cycle').textContent = 'N/A';
             document.getElementById('next-billing').textContent = 'N/A';
+            
+            // Update table
+            document.getElementById('table-plan-name').textContent = 'Free';
+            const planStatusEl = document.getElementById('table-plan-status');
+            planStatusEl.textContent = 'Active';
+            planStatusEl.classList.add('active');
           }
 
           // Load usage stats from pulse
@@ -221,6 +342,9 @@
             document.getElementById('total-units').textContent = 'N/A'; // Would need separate endpoint
             document.getElementById('active-leases').textContent = 'N/A'; // Would need separate endpoint
             document.getElementById('open-requests').textContent = pulseData.open_requests || 0;
+            
+            // Update table with available data
+            document.getElementById('table-property-count').textContent = 'Data loading...';
           }
 
         } catch (error) {
@@ -230,6 +354,8 @@
 
       function logout() {
         localStorage.removeItem('access_token');
+        // Also clear the cookie
+        document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
         window.location.href = '/auth.html';
       }
     </script>

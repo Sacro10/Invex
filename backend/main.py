@@ -51,6 +51,8 @@ from auth import (
     create_access_token,
     get_current_user,
     require_capability,
+    require_plan,
+    has_feature,
     get_org_plan,
 )
 
@@ -133,6 +135,20 @@ app = FastAPI(
 
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+# Price mappings
+PRICE_MAP = {
+    "core": os.getenv("STRIPE_PRICE_CORE"),
+    "growth": os.getenv("STRIPE_PRICE_GROWTH"),
+    "premium": os.getenv("STRIPE_PRICE_PREMIUM"),
+}
+
+def get_plan_from_price_id(price_id: str) -> str:
+    """Get plan name from Stripe price ID."""
+    for plan, pid in PRICE_MAP.items():
+        if pid == price_id:
+            return plan
+    return "core"  # Default fallback
 
 # Configure structured logging
 logging.basicConfig(
@@ -852,6 +868,10 @@ class PortalSessionResponse(BaseModel):
     url: str
 
 
+class UpgradeRequest(BaseModel):
+    plan: str  # core, growth, premium
+
+
 class MoveInChecklistRequest(BaseModel):
     tenant_id: str
     property_id: str
@@ -1490,7 +1510,7 @@ def rent_collection(
     payload: RentCollectionRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
-    _=Depends(require_capability("rent_collection")),
+    _=Depends(require_capability("automated_rent_collection")),
 ) -> RentCollectionResponse:
     """Record a rent collection."""
     user, org_id = user_data
@@ -1530,7 +1550,7 @@ def get_rent_collections(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    _=Depends(require_capability("rent_collection")),
+    _=Depends(require_capability("automated_rent_collection")),
 ):
     """Get paginated list of rent collections for user's organization."""
     user, org_id = user_data
@@ -1707,7 +1727,7 @@ def notification(
     payload: NotificationRequest,
     user_data=Depends(get_current_user),
     db: Session = Depends(get_db),
-    _=Depends(require_capability("tenant_communications")),
+    _=Depends(require_capability("tenant_portal_reminders")),
 ) -> NotificationResponse:
     """Queue a notification for a tenant."""
     user, org_id = user_data
@@ -1741,7 +1761,7 @@ def get_notifications(
     db: Session = Depends(get_db),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    _=Depends(require_capability("tenant_communications")),
+    _=Depends(require_capability("tenant_portal_reminders")),
 ):
     """Get paginated list of notifications for user's organization."""
     user, org_id = user_data
@@ -2322,12 +2342,7 @@ def create_checkout_session(
         raise HTTPException(status_code=400, detail="Invalid plan")
     
     # Get price ID from env
-    price_map = {
-        "core": os.getenv("STRIPE_PRICE_CORE"),
-        "growth": os.getenv("STRIPE_PRICE_GROWTH"),
-        "premium": os.getenv("STRIPE_PRICE_PREMIUM"),
-    }
-    price_id = price_map.get(payload.plan)
+    price_id = PRICE_MAP.get(payload.plan)
     if not price_id:
         raise HTTPException(status_code=500, detail="Price not configured")
     
@@ -2388,6 +2403,54 @@ def create_portal_session(
     return PortalSessionResponse(url=session.url)
 
 
+@app.post("/api/billing/upgrade")
+def upgrade_subscription(
+    payload: UpgradeRequest,
+    user_data=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Upgrade or downgrade a subscription plan."""
+    user, org_id = user_data
+    
+    # Validate plan
+    if payload.plan not in [p.value for p in Plan]:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    # Get current subscription
+    sub = db.query(SubscriptionModel).filter(SubscriptionModel.org_id == org_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="No active subscription found")
+    
+    # Get price ID for new plan
+    new_price_id = PRICE_MAP.get(payload.plan)
+    if not new_price_id:
+        raise HTTPException(status_code=500, detail="Price not configured")
+    
+    try:
+        # Get the current subscription from Stripe to find the item ID
+        stripe_sub = stripe.Subscription.retrieve(sub.stripe_subscription_id)
+        item_id = stripe_sub.items.data[0].id  # Assume single item subscription
+        
+        # Update subscription in Stripe
+        stripe.Subscription.modify(
+            sub.stripe_subscription_id,
+            items=[{
+                "id": item_id,
+                "price": new_price_id,
+            }],
+            proration_behavior="create_prorations",  # Charge/credit for the difference
+        )
+        
+        # Update local record
+        sub.plan = payload.plan
+        db.commit()
+        
+        return {"message": f"Subscription upgraded to {payload.plan} plan"}
+        
+    except stripe.error.StripeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/billing/webhook")
 async def stripe_webhook(
     request: Request,
@@ -2431,6 +2494,13 @@ async def stripe_webhook(
         if db_sub:
             db_sub.status = subscription.status
             db_sub.current_period_end = datetime.fromtimestamp(subscription.current_period_end, tz=timezone.utc)
+            
+            # Update plan if subscription was updated (not deleted)
+            if event.type == "customer.subscription.updated" and subscription.items.data:
+                price_id = subscription.items.data[0].price.id
+                new_plan = get_plan_from_price_id(price_id)
+                db_sub.plan = new_plan
+            
             db.commit()
     
     return {"status": "ok"}

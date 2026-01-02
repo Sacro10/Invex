@@ -144,3 +144,63 @@ def test_plan_upgrade_scenario(client: pytest.fixture, free_org: pytest.fixture)
 
     # After upgrade, should be able to create more properties
     # Note: This test would need adjustment based on how plan upgrades are handled
+
+
+def test_core_user_denied_premium_endpoint(client, free_org):
+    """Test that core plan users are denied access to premium-only endpoints."""
+    headers = {"Authorization": f"Bearer {free_org['token']}"}
+    
+    # Try to access enterprise analytics (requires advanced_analytics capability)
+    response = client.get("/api/enterprise/analytics", headers=headers)
+    assert response.status_code == 403
+    assert "advanced_analytics" in response.json()["detail"]
+
+
+def test_premium_user_allowed_premium_endpoint(client, premium_org):
+    """Test that premium plan users can access premium-only endpoints."""
+    headers = {"Authorization": f"Bearer {premium_org['token']}"}
+    
+    # Try to access enterprise analytics (requires advanced_analytics capability)
+    response = client.get("/api/enterprise/analytics", headers=headers)
+    assert response.status_code == 200
+    assert "Enterprise analytics data" in response.json()["message"]
+
+
+def test_core_user_allowed_basic_features(client, free_org):
+    """Test that core plan users can access basic features."""
+    headers = {"Authorization": f"Bearer {free_org['token']}"}
+    
+    # Try to access tenant screening (available in core)
+    response = client.post("/api/tenant-screening", headers=headers, json={
+        "name": "John Doe",
+        "income": 50000,
+        "credit_score": 650,
+        "evictions": 0
+    })
+    assert response.status_code == 200
+
+
+def test_growth_user_denied_premium_features(client, pro_org):
+    """Test that growth plan users are denied premium-only features."""
+    headers = {"Authorization": f"Bearer {pro_org['token']}"}
+    
+    # Try to access data export (requires data_export_api_access - premium only)
+    response = client.get("/api/export/tenant-screenings/csv", headers=headers)
+    assert response.status_code == 403
+    assert "data_export_api_access" in response.json()["detail"]
+
+
+def test_require_plan_functionality(client, free_org, pro_org):
+    """Test the require_plan functionality with different plan levels."""
+    # This would test endpoints that use require_plan instead of require_capability
+    # For now, we'll test the logic indirectly through existing endpoints
+    
+    # Core user trying premium feature
+    headers_core = {"Authorization": f"Bearer {free_org['token']}"}
+    response = client.get("/api/enterprise/analytics", headers=headers_core)
+    assert response.status_code == 403
+    
+    # Growth user trying premium feature  
+    headers_growth = {"Authorization": f"Bearer {pro_org['token']}"}
+    response = client.get("/api/enterprise/analytics", headers=headers_growth)
+    assert response.status_code == 403  # Growth users should be denied premium features

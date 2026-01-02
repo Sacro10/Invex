@@ -226,3 +226,51 @@ def pro_org(client, db_session):
     token = response.json()["access_token"]
     
     return {"org": org, "user": user, "subscription": subscription, "token": token}
+
+
+@pytest.fixture  
+def premium_org(client, db_session):
+    """Create a test organization with premium plan."""
+    import uuid
+    from models import Organization, User, Subscription
+    from datetime import datetime, timezone, timedelta
+    
+    org = Organization(name=f"Premium Org {uuid.uuid4()}", created_at=None)
+    db_session.add(org)
+    db_session.commit()
+    db_session.refresh(org)
+    
+    # Create user for the org
+    from auth import hash_password
+    user = User(
+        org_id=org.id,
+        email=f"premium-{uuid.uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+        role="owner"
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    
+    # Create premium subscription
+    subscription = Subscription(
+        org_id=org.id,
+        stripe_customer_id=f"cus_premium_{uuid.uuid4()}",
+        stripe_subscription_id=f"sub_premium_{uuid.uuid4()}",
+        plan="premium",
+        status="active",
+        current_period_end=datetime.now(timezone.utc) + timedelta(days=30)
+    )
+    db_session.add(subscription)
+    db_session.commit()
+    db_session.refresh(subscription)
+    
+    # Login to get token
+    response = client.post("/api/auth/login", json={
+        "email": user.email,
+        "password": "password123"
+    })
+    assert response.status_code == 200
+    token = response.json()["access_token"]
+    
+    return {"org": org, "user": user, "subscription": subscription, "token": token}

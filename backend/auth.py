@@ -153,12 +153,20 @@ PLAN_CAPABILITIES = {
         "multi_property_dashboards",
         "market_pricing_intelligence",
         "advanced_analytics",
+        "lease_renewal_intelligence",  # AI lease renewal suggestions
         "dedicated_onboarding",
         "predictive_vacancy_alerts",
         "priority_support",
         "data_export_api_access",
         "property_management",     # property CRUD
     ]
+}
+
+# Plan hierarchy for comparison
+PLAN_HIERARCHY = {
+    "core": 1,
+    "growth": 2,
+    "premium": 3
 }
 
 
@@ -205,3 +213,51 @@ def require_capability(capability: str):
         return user, org_id
     
     return dependency
+
+
+def require_plan(minimum_plan: str):
+    """Factory function that returns a FastAPI dependency for minimum plan checking.
+    
+    Args:
+        minimum_plan: The minimum plan required (core, growth, premium)
+        
+    Returns:
+        Dependency function that can be used with Depends()
+    """
+    async def dependency(
+        user_data=Depends(get_current_user),
+        db: Session = Depends(get_db)
+    ) -> Tuple[User, int]:
+        """Actual dependency function that checks minimum plan access."""
+        user, org_id = user_data
+        
+        # Get current plan
+        current_plan = get_org_plan(db, org_id)
+        current_level = PLAN_HIERARCHY.get(current_plan, 0)
+        required_level = PLAN_HIERARCHY.get(minimum_plan, 999)
+        
+        if current_level < required_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This feature requires {minimum_plan} plan or higher. Current plan: {current_plan}",
+            )
+        
+        return user, org_id
+    
+    return dependency
+
+
+def has_feature(user: User, org_id: int, feature_name: str, db: Session) -> bool:
+    """Check if a user has access to a specific feature.
+    
+    Args:
+        user: The user object
+        org_id: The organization ID
+        feature_name: The feature/capability name to check
+        db: Database session
+        
+    Returns:
+        bool: True if user has access to the feature
+    """
+    plan = get_org_plan(db, org_id)
+    return feature_name in PLAN_CAPABILITIES.get(plan, [])

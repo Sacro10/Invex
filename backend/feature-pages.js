@@ -22,6 +22,8 @@ async function apiFetch(url, options = {}) {
   const res = await fetch(url, options);
   if (res.status === 401) {
     localStorage.removeItem("access_token");
+    // Also clear the cookie
+    document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     window.location.href = "/auth.html";
     throw new Error("Unauthorized");
   }

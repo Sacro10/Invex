@@ -2617,9 +2617,17 @@ async def auth_page():
 # Auth detection helper
 def is_authenticated(request: Request, db: Session) -> bool:
     """Check if request is authenticated using existing JWT auth system."""
+    # First check Authorization header
     auth_header = request.headers.get("Authorization")
+    token = None
+    
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]  # Remove "Bearer " prefix
+    else:
+        # Check for token in cookies
+        token = request.cookies.get("access_token")
+    
+    if token:
         try:
             from auth import verify_token
             payload = verify_token(token)

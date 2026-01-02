@@ -1,6 +1,15 @@
 
 const API_BASE = window.API_BASE || "";
 
+// Check authentication on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const token = localStorage.getItem("access_token");
+  if (!token) {
+    const currentPage = window.location.pathname;
+    window.location.href = `/auth.html?redirect=${encodeURIComponent(currentPage)}`;
+  }
+});
+
 // Helper: fetch with auth token for /api/* except /api/auth/* and /api/health
 async function apiFetch(url, options = {}) {
   const isApi = url.startsWith("/api/") || url.startsWith(API_BASE + "/api/");
@@ -13,7 +22,7 @@ async function apiFetch(url, options = {}) {
   const res = await fetch(url, options);
   if (res.status === 401) {
     localStorage.removeItem("access_token");
-    window.location.href = "auth.html";
+    window.location.href = "/auth.html";
     throw new Error("Unauthorized");
   }
   return res;

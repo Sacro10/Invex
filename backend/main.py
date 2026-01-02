@@ -2485,31 +2485,8 @@ async def protected_page(page: str, request: Request, db: Session = Depends(get_
     }
 
     if page in protected_pages:
-        # Check authentication manually
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            # Not authenticated, redirect to auth page for login/signup
-            return RedirectResponse(url="/auth.html", status_code=302)
-        
-        token = auth_header[7:]  # Remove "Bearer " prefix
-        try:
-            from auth import verify_token
-            payload = verify_token(token)
-            user_id_str: str = payload.get("sub")
-            org_id: int = payload.get("org_id")
-            if user_id_str is None or org_id is None:
-                return RedirectResponse(url="/auth.html", status_code=302)
-            
-            user_id = int(user_id_str)
-            user = db.query(User).filter(User.id == user_id, User.org_id == org_id).first()
-            if user is None:
-                return RedirectResponse(url="/auth.html", status_code=302)
-                
-        except Exception:
-            # Any authentication error, redirect to auth page
-            return RedirectResponse(url="/auth.html", status_code=302)
-        
-        # User is authenticated, serve the page
+        # Authentication is checked client-side by JavaScript
+        # Serve the page - JavaScript will redirect to auth.html if no token
         file_path = BASE_DIR / f"{page}.html"
         if file_path.exists():
             return FileResponse(file_path, media_type="text/html")

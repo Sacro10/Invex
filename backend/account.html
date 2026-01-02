@@ -173,7 +173,7 @@
       async function loadAccountDetails() {
         const token = localStorage.getItem('access_token');
         if (!token) {
-          window.location.href = 'auth.html';
+          window.location.href = '/auth.html';
           return;
         }
 
@@ -184,7 +184,7 @@
           });
           if (userRes.status === 401) {
             localStorage.removeItem('access_token');
-            window.location.href = 'auth.html';
+            window.location.href = '/auth.html';
             return;
           }
           const userData = await userRes.json();
@@ -230,7 +230,7 @@
 
       function logout() {
         localStorage.removeItem('access_token');
-        window.location.href = 'auth.html';
+        window.location.href = '/auth.html';
       }
     </script>
     <style>

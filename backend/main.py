@@ -2507,7 +2507,7 @@ async def protected_page(page: str, request: Request, db: Session = Depends(get_
                 
         except Exception:
             # Any authentication error, redirect to auth page
-            return RedirectResponse(url="/", status_code=302)
+            return RedirectResponse(url="/auth.html", status_code=302)
         
         # User is authenticated, serve the page
         file_path = BASE_DIR / f"{page}.html"

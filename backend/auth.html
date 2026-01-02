@@ -173,7 +173,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Login failed');
         localStorage.setItem('access_token', data.access_token);
-        window.location.href = 'index.html';
+        window.location.href = 'properties.html';
       } catch (err) {
         document.getElementById('loginError').textContent = err.message;
       }
@@ -193,7 +193,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Registration failed');
         localStorage.setItem('access_token', data.access_token);
-        window.location.href = 'index.html';
+        window.location.href = 'properties.html';
       } catch (err) {
         document.getElementById('registerError').textContent = err.message;
       }
